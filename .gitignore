@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Mac
+.DS_Store
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment Variables (CRITICAL)
+.env
+.env.local
+
+# Project Specific
+_archive/
+output/
+logs/
+temp/
+*.log
+
+# Downloaded assets (auto-generated)
+*.otf
+*.ttf
