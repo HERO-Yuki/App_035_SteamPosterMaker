@@ -6,6 +6,7 @@ Steamゲーム布教まとめ画像（最大10本紹介）自動生成 Webアプ
 # ── Standard Library ───────────────────────────────────────
 import io
 import os
+import re
 import datetime
 from collections import deque
 from functools import lru_cache
@@ -265,6 +266,317 @@ def get_game_details(app_id: int) -> dict:
         }
     except Exception:
         return fallback_network
+
+
+# ═══════════════════════════════════════════════════════════
+#  Steam インポート
+# ═══════════════════════════════════════════════════════════
+
+def _parse_profile_input(text: str) -> tuple[str, str]:
+    """
+    Steam プロフィール URL / vanity 名 / 64bit ID を受け取り
+    ('steamid', value) または ('vanity', value) を返す。
+    """
+    text = text.strip().rstrip("/")
+    m = re.search(r"profiles[/\\](\d{17})", text)
+    if m:
+        return "steamid", m.group(1)
+    m = re.search(r"/id/([^/?]+)", text)
+    if m:
+        return "vanity", m.group(1)
+    if re.fullmatch(r"\d{17}", text):
+        return "steamid", text
+    if text and re.match(r"^[\w-]+$", text):
+        return "vanity", text
+    return "unknown", text
+
+
+@st.cache_data(ttl=3600)
+def _resolve_vanity_url(api_key: str, vanity: str) -> tuple[str, str]:
+    """Vanity URL 名を 64bit Steam ID に解決する（API キー必要）"""
+    try:
+        resp = requests.get(
+            "https://api.steampowered.com/ISteamUser/ResolveVanityURL/v1/",
+            params={"key": api_key, "vanityurl": vanity},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        result = resp.json().get("response", {})
+        if result.get("success") == 1:
+            return result["steamid"], ""
+        return "", "Steam ID が見つかりませんでした。プロフィール URL またはカスタム ID を確認してください。"
+    except Exception as e:
+        return "", f"Steam ID 解決中にエラーが発生しました: {e}"
+
+
+@st.cache_data(ttl=300)
+def fetch_wishlist(profile_input: str) -> tuple[list[dict], str]:
+    """
+    Steam ウィッシュリストを取得する（API キー不要）。
+    Returns: (game_list, error_msg)
+    """
+    kind, value = _parse_profile_input(profile_input)
+    if kind == "steamid":
+        url = f"https://store.steampowered.com/wishlist/profiles/{value}/wishlistdata/?p=0"
+    elif kind == "vanity":
+        url = f"https://store.steampowered.com/wishlist/id/{value}/wishlistdata/?p=0"
+    else:
+        return [], "Steam プロフィール URL または Steam ID を入力してください。"
+    try:
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, dict) or not data:
+            return [], "ウィッシュリストが空か、非公開設定になっています。"
+        items = sorted(data.items(), key=lambda x: x[1].get("priority", 9999))
+        return [
+            {"app_id": int(aid), "name": info.get("name", f"AppID {aid}")}
+            for aid, info in items[:20]
+        ], ""
+    except Exception as e:
+        return [], f"ウィッシュリストの取得に失敗しました: {e}"
+
+
+@st.cache_data(ttl=300)
+def fetch_recently_played(api_key: str, profile_input: str) -> tuple[list[dict], str]:
+    """最近プレイしたゲーム（過去 2 週間）を取得する"""
+    kind, value = _parse_profile_input(profile_input)
+    if kind == "steamid":
+        steam_id = value
+    elif kind == "vanity":
+        steam_id, err = _resolve_vanity_url(api_key, value)
+        if err:
+            return [], err
+    else:
+        return [], "Steam プロフィール URL または Steam ID を入力してください。"
+    try:
+        resp = requests.get(
+            "https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/",
+            params={"key": api_key, "steamid": steam_id, "count": 10},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        games = resp.json().get("response", {}).get("games", [])
+        if not games:
+            return [], "最近プレイしたゲームが見つかりません（プロフィールが非公開の可能性があります）。"
+        return [
+            {"app_id": g["appid"], "name": g.get("name", f"AppID {g['appid']}")}
+            for g in games
+        ], ""
+    except Exception as e:
+        return [], f"取得に失敗しました: {e}"
+
+
+@st.cache_data(ttl=300)
+def fetch_top_playtime(api_key: str, profile_input: str, count: int = 10) -> tuple[list[dict], str]:
+    """プレイ時間上位ゲームを取得する"""
+    kind, value = _parse_profile_input(profile_input)
+    if kind == "steamid":
+        steam_id = value
+    elif kind == "vanity":
+        steam_id, err = _resolve_vanity_url(api_key, value)
+        if err:
+            return [], err
+    else:
+        return [], "Steam プロフィール URL または Steam ID を入力してください。"
+    try:
+        resp = requests.get(
+            "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/",
+            params={
+                "key": api_key,
+                "steamid": steam_id,
+                "include_appinfo": "true",
+                "include_played_free_games": "true",
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        games = resp.json().get("response", {}).get("games", [])
+        if not games:
+            return [], "所有ゲームが見つかりません（プロフィールが非公開の可能性があります）。"
+        top = sorted(games, key=lambda g: g.get("playtime_forever", 0), reverse=True)[:count]
+        return [
+            {
+                "app_id":     g["appid"],
+                "name":       g.get("name", f"AppID {g['appid']}"),
+                "playtime_h": round(g.get("playtime_forever", 0) / 60, 1),
+            }
+            for g in top
+        ], ""
+    except Exception as e:
+        return [], f"取得に失敗しました: {e}"
+
+
+def _do_import_games(candidates: list[dict], num_games: int) -> None:
+    """候補リストを空きスロットに順番に追加して st.rerun() で画面を更新する"""
+    empty_slots = [i for i in range(num_games) if st.session_state.games[i] is None]
+    if not empty_slots:
+        st.warning("空きスロットがありません。先にスロットをクリアしてからインポートしてください。")
+        return
+    to_add = candidates[: len(empty_slots)]
+    n_skip = len(candidates) - len(to_add)
+    with st.status(f"📥 {len(to_add)} 本のゲームデータを取得中...", expanded=True) as status:
+        for cand, slot_idx in zip(to_add, empty_slots):
+            st.write(f"🌐 「{cand['name']}」のデータを取得中...")
+            details = get_game_details(cand["app_id"])
+            st.session_state.games[slot_idx] = {
+                "app_id":         cand["app_id"],
+                "title":          details["title"] or cand["name"],
+                "image_url":      details["image_url"],
+                "price":          details["price"],
+                "review":         "",
+                "players":        [],
+                "age_restricted": details.get("age_restricted", False),
+            }
+        label = f"✅ {len(to_add)} 本をインポートしました！"
+        if n_skip:
+            label += f"（空きスロット不足のため {n_skip} 本をスキップ）"
+        status.update(label=label, state="complete", expanded=False)
+    st.rerun()
+
+
+def render_import_section(num_games: int) -> None:
+    """Steam からゲームを一括インポートするセクション"""
+    with st.expander("📥 Steam からインポート", expanded=False):
+        st.caption(
+            "Steam からゲーム情報を一括取得してスロットに仮置きします。"
+            "レビュー文・プレイ人数は後から各スロットで個別に編集できます。"
+        )
+
+        # ── 共通: Steam API 認証情報（最近プレイ・プレイ時間 TOP 用）──────────
+        c_key, c_id = st.columns(2)
+        with c_key:
+            st.text_input(
+                "🔑 Steam API キー（最近プレイ・プレイ時間 TOP に必要）",
+                key="import_api_key",
+                type="password",
+                placeholder="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                help="https://steamcommunity.com/dev/apikey で無料取得できます",
+            )
+        with c_id:
+            st.text_input(
+                "Steam プロフィール URL または Steam ID（同上）",
+                key="import_steam_profile",
+                placeholder="https://steamcommunity.com/id/ユーザー名/",
+                help="プロフィール URL か 17桁の Steam ID (64bit)",
+            )
+
+        st.divider()
+
+        tab_wish, tab_recent, tab_top = st.tabs([
+            "🎯 ウィッシュリスト（API キー不要）",
+            "🕒 最近プレイしたゲーム",
+            "⏱️ プレイ時間 TOP",
+        ])
+
+        # ── ウィッシュリスト ──────────────────────────────────────────────────
+        with tab_wish:
+            st.caption("Steam ウィッシュリストから取得します。ウィッシュリストを**公開設定**にしている必要があります。")
+            c_url, c_btn = st.columns([5, 1])
+            with c_url:
+                st.text_input(
+                    "ウィッシュリスト URL / Steam ID",
+                    key="import_wish_url",
+                    placeholder="例: https://store.steampowered.com/wishlist/id/ユーザー名/",
+                    label_visibility="collapsed",
+                )
+            with c_btn:
+                wish_fetch = st.button("取得", key="import_wish_fetch", use_container_width=True)
+            if wish_fetch:
+                v = st.session_state.get("import_wish_url", "").strip()
+                if v:
+                    with st.spinner("🔍 ウィッシュリストを取得中..."):
+                        games, err = fetch_wishlist(v)
+                    st.session_state["import_wish_results"] = games
+                    if err:
+                        st.error(err)
+                else:
+                    st.warning("URL または Steam ID を入力してください。")
+
+            wish_results = st.session_state.get("import_wish_results", [])
+            if wish_results:
+                opts = [f"{g['name']}  (AppID: {g['app_id']})" for g in wish_results]
+                sel = st.multiselect(
+                    f"インポートするゲームを選択（最大 {num_games} 個）",
+                    opts,
+                    default=opts[:num_games],
+                    key="import_wish_sel",
+                )
+                if st.button(
+                    "📥 選択したゲームをスロットに追加", key="import_wish_add",
+                    type="primary", use_container_width=True, disabled=not sel,
+                ):
+                    chosen = [wish_results[opts.index(s)] for s in sel]
+                    _do_import_games(chosen, num_games)
+
+        # ── 最近プレイ ────────────────────────────────────────────────────────
+        with tab_recent:
+            st.caption("過去 2 週間にプレイしたゲームを最大 10 件取得します。")
+            api_key = st.session_state.get("import_api_key", "").strip()
+            profile = st.session_state.get("import_steam_profile", "").strip()
+            if not (api_key and profile):
+                st.info("⬆️ 上部に Steam API キーと Steam ID を入力してください。")
+            if st.button(
+                "取得", key="import_recent_fetch",
+                use_container_width=True, disabled=not (api_key and profile),
+            ):
+                with st.spinner("🕒 最近プレイしたゲームを取得中..."):
+                    games, err = fetch_recently_played(api_key, profile)
+                st.session_state["import_recent_results"] = games
+                if err:
+                    st.error(err)
+
+            recent_results = st.session_state.get("import_recent_results", [])
+            if recent_results:
+                opts = [f"{g['name']}  (AppID: {g['app_id']})" for g in recent_results]
+                sel = st.multiselect(
+                    f"インポートするゲームを選択（最大 {num_games} 個）",
+                    opts,
+                    default=opts[:num_games],
+                    key="import_recent_sel",
+                )
+                if st.button(
+                    "📥 選択したゲームをスロットに追加", key="import_recent_add",
+                    type="primary", use_container_width=True, disabled=not sel,
+                ):
+                    chosen = [recent_results[opts.index(s)] for s in sel]
+                    _do_import_games(chosen, num_games)
+
+        # ── プレイ時間 TOP ────────────────────────────────────────────────────
+        with tab_top:
+            st.caption(f"プレイ時間が多い順に最大 {num_games} 件取得します（全所有ゲームが対象）。")
+            api_key = st.session_state.get("import_api_key", "").strip()
+            profile = st.session_state.get("import_steam_profile", "").strip()
+            if not (api_key and profile):
+                st.info("⬆️ 上部に Steam API キーと Steam ID を入力してください。")
+            if st.button(
+                "取得", key="import_top_fetch",
+                use_container_width=True, disabled=not (api_key and profile),
+            ):
+                with st.spinner("⏱️ プレイ時間データを取得中（数秒かかる場合があります）..."):
+                    games, err = fetch_top_playtime(api_key, profile, count=num_games)
+                st.session_state["import_top_results"] = games
+                if err:
+                    st.error(err)
+
+            top_results = st.session_state.get("import_top_results", [])
+            if top_results:
+                opts = [
+                    f"{g['name']}  ({g.get('playtime_h', 0):.1f}h / AppID: {g['app_id']})"
+                    for g in top_results
+                ]
+                sel = st.multiselect(
+                    f"インポートするゲームを選択（最大 {num_games} 個）",
+                    opts,
+                    default=opts[:num_games],
+                    key="import_top_sel",
+                )
+                if st.button(
+                    "📥 選択したゲームをスロットに追加", key="import_top_add",
+                    type="primary", use_container_width=True, disabled=not sel,
+                ):
+                    chosen = [top_results[opts.index(s)] for s in sel]
+                    _do_import_games(chosen, num_games)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -773,6 +1085,7 @@ def render_slot_card(i: int) -> None:
 
     with st.container(border=True):
         if game:
+            # ── 上段: サムネ + タイトル・価格・人数 ─────────────
             col_thumb, col_info = st.columns([2, 3])
             with col_thumb:
                 if game.get("age_restricted"):
@@ -787,10 +1100,10 @@ def render_slot_card(i: int) -> None:
                     st.caption(f"💴 {game['price']}")
                 if game.get("players"):
                     st.caption("👥 " + "  /  ".join(game["players"]))
-                review = game.get("review", "")
-                if review:
-                    snippet = review[:55] + "…" if len(review) > 55 else review
-                    st.caption(f"💬 {snippet}")
+            # ── 下段: レビュー文（カード全幅） ──────────────────
+            review = game.get("review", "")
+            if review:
+                st.caption(f"💬 {review}")
         else:
             # 空スロットのプレースホルダ
             st.markdown(
@@ -825,6 +1138,15 @@ def main() -> None:
 
     st.title("🎮 Steam8 Poster")
     st.caption("Steamゲーム布教まとめ画像（最大10本紹介）を 1920×1080 で自動生成します。")
+
+    with st.sidebar:
+        st.markdown("### 📢 開発者をフォロー")
+        st.caption("アップデート情報やご要望はこちらまで！")
+        st.link_button(
+            "𝕏 (Twitter) - @Yuki_HERO44",
+            "https://x.com/Yuki_HERO44",
+            use_container_width=True,
+        )
 
     st.divider()
 
@@ -868,6 +1190,11 @@ def main() -> None:
             f"カードサイズ: {layout['card_w']} × {layout['card_h']} px  ·  "
             f"サムネ幅: {THUMB_W} px"
         )
+
+    st.divider()
+
+    # ── Steam インポート ─────────────────────────────────────
+    render_import_section(num_games)
 
     st.divider()
 
@@ -920,8 +1247,16 @@ def main() -> None:
     st.divider()
 
     # ── ポスター生成 ────────────────────────────────────────
+    if filled > 0 and filled < num_games:
+        st.info(
+            f"💡 現在 **{filled}** 本のゲームが登録されています。"
+            f"未入力の枠（{num_games - filled} 個）は「空欄カード」として出力されます。"
+        )
+    else:
+        st.caption("※ 空のスロットはそのまま空欄カードとして画像に出力されます。")
+    already_generated = "last_poster_bytes" in st.session_state
     generate_btn = st.button(
-        "🎨 ポスターを生成する",
+        "🔄 ポスターを再生成する" if already_generated else "🎨 ポスターを生成する",
         type="primary",
         use_container_width=True,
         disabled=(filled == 0),
@@ -968,6 +1303,7 @@ def main() -> None:
                 gen_status.update(
                     label="✅ ポスター生成完了！", state="complete", expanded=False
                 )
+                st.balloons()
             except Exception as e:
                 gen_status.update(label="❌ 生成に失敗しました", state="error")
                 st.error(f"詳細: {e}")
