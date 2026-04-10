@@ -1,4 +1,4 @@
-# PROJECT CONTEXT & MEMORY
+﻿# PROJECT CONTEXT & MEMORY
 
 AI エージェントがプロジェクトの文脈を理解し、適切な支援を提供するための **クイックリファレンス** です。  
 詳細な履歴・設計判断は `docs/` の各ファイルを参照してください。
@@ -92,10 +92,11 @@ App_035_SteamPosterMaker/
 ### カードレイアウト
 - サムネ幅: **380 px**
 - サムネ描画モード: **contain（letterbox）** — `load_pil_image_contain()` でアスペクト比を保ったまま全体を表示し、余白は黒ベタで埋める（旧: cover/中央クロップ）
-- アクセントカラーの縦区切り線（3px）がサムネとテキストを分離
+- サムネとテキスト間の縦区切り線は廃止済み（`SEPARATOR_W` 定数も削除）
+- グリッド中央に縦罫線（`CENTER_DIV_W=20px`、`theme["accent"]` 色）を描画
 - 価格: サムネ右下に **半透明バッジ**（`Image.alpha_composite` で合成）として描画
     - フォント 24pt・端から `PRICE_BADGE_EDGE=10px` の余白
-    - 定数: `PRICE_BADGE_PAD=8`, `PRICE_BADGE_EDGE=10`, `SALE_GREEN=(164,208,7)`（モジュール定数）
+    - 定数: `PRICE_BADGE_PAD=8`, `PRICE_BADGE_EDGE=10`, `SALE_GREEN=(164,208,7)`, `ACCENT_LINE_H=4`
     - **セール価格**（`-XX%  ¥YYY` 形式）は割引率部分を `SALE_GREEN`(#A4D007)、定価部分を `theme["accent"]` で分割描画
 - スロット番号バッジ（01, 02...）は廃止
 
@@ -208,6 +209,10 @@ App_035_SteamPosterMaker/
 - [x] 並び替えモードでもカードグリッドを常時表示（ゲーム情報を参照しながら並べ替え可能）
 - [x] 免責事項の `<a>` リンクが正しく動作するよう `unsafe_allow_html=True` を追加
 - [x] X ボタンにホバーエフェクト（`transition` + `:hover`）を CSS で実装
+- [x] サムネ〜テキスト縦区切り線を廃止・グリッド中央縦罫線（`CENTER_DIV_W=20px`）に変更
+- [x] ヘッダー高さ完全自動化（`ensure_font()` でフォント実測値から `_actual_header_h` を更新）
+- [x] `ACCENT_LINE_H=4` 定数追加・ヘッダー/フッター計算に統一適用
+- [x] `SEPARATOR_W` 削除・`.x-btn-sidebar` CSS を `_GLOBAL_CSS` に統合（重複排除）
 
 ### 未実装・将来課題 (Todo)
 - [ ] フォント取得の代替 URL（GitHub が落ちている場合のフォールバック）
@@ -247,7 +252,9 @@ App_035_SteamPosterMaker/
 
 | バージョン | 日付 | 主な変更 |
 |---|---|---|
-| **v13** | 2026-04-10 | プレイ人数フィールド廃止・レビュースペース拡大・文字数上限自動調整 |
+| **v15** | 2026-04-10 | コードレビュー・リファクタ: ACCENT_LINE_H 定数化・CSS 統合・不要定数/変数削除 |
+|| v14 | 2026-04-10 | ヘッダー高さ完全自動化・グリッド中央罫線 20px・TITLE_V_PAD=8px |
+|| v13 | 2026-04-10 | プレイ人数フィールド廃止・レビュースペース拡大・文字数上限自動調整 |
 | v12 | 2026-04-10 | ゲーム数 8/10 選択 UI 追加・primaryColor #d99200・サイドバー X ボタン統一 |
 | v11 | 2026-04-10 | primaryColor をグリーンに変更・セール割引率を SALE_GREEN で強調・DL ボタン secondary 化 |
 | v10 | 2026-04-10 | ポスターフッター帯・ヘッダー縮小・並び替え UX 改善・リンク修正・X ボタンホバー |
@@ -261,3 +268,4 @@ App_035_SteamPosterMaker/
 | v3 | 2026-04-10 | UX ポリッシュ・Enter キー送信・リアルタイムカウンター |
 | v2 | 2026-04-09 | コードレビュー・年齢制限バグ修正・デッドコード削除 |
 | v1 | 2026-04-09 | 初期実装 |
+

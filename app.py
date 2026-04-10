@@ -33,12 +33,12 @@ HEADER_H   = 88     # 全体見出しエリアの高さ（px）— ensure_font()
 FOOTER_H   = 36     # フッター帯の高さ（px）— ウォーターマーク領域
 
 # ── カード構造 ───────────────────────────────────────────
-THUMB_W         = 380   # サムネ幅（px）
-SEPARATOR_W     = 0     # サムネ〜テキスト間の縦区切り線幅（px）0=非表示
-CENTER_DIV_W    = 20    # グリッド中央縦罫線の幅（px）
-TEXT_PAD        = 12    # テキストエリア内側パディング（px）
-ROW_GAP         = 6     # タイトル〜レビュー間の行間（px）
+THUMB_W           = 380   # サムネ幅（px）
+CENTER_DIV_W      = 20    # グリッド中央縦罫線の幅（px）
+TEXT_PAD          = 12    # テキストエリア内側パディング（px）
+ROW_GAP           = 6     # タイトル〜レビュー間の行間（px）
 TITLE_MAX_H_RATIO = 0.22  # ゲームタイトル最大高さ ÷ カード高さの比率（8本/10本・見出しあり/なしで可変）
+ACCENT_LINE_H     = 4     # ヘッダー・フッターのアクセントライン高さ（px）
 
 # ── 価格バッジ ───────────────────────────────────────────
 PRICE_BADGE_PAD  = 8          # バッジ内テキスト余白（px）
@@ -192,11 +192,42 @@ _X_BUTTON_HTML = """
 </div>
 """
 
-# グローバル CSS（スロットカード高さ揃え + 列ギャップ調整）
+# グローバル CSS（スロットカード高さ揃え + 列ギャップ調整 + X ボタン共通スタイル）
 _GLOBAL_CSS = """
 <style>
 /* スロットカード列内のギャップを詰める */
 div[data-testid='stColumn'] > div[data-testid='stVerticalBlock'] { gap: 2px; }
+
+/* ── X ブランドボタン（サイドバー用） ── */
+.x-btn-sidebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #000;
+  color: #fff !important;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-decoration: none !important;
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+.x-btn-sidebar:visited, .x-btn-sidebar:active, .x-btn-sidebar:focus {
+  color: #fff !important;
+  text-decoration: none !important;
+}
+.x-btn-sidebar:hover {
+  background: #1a1a1a;
+  border-color: #666;
+  opacity: 0.85;
+  color: #fff !important;
+}
 
 /* ── スロットカード行: 高さを同一に揃える ── */
 /* ボーダーコンテナを含む横並びブロックのみ対象にし、他の行に影響させない */
@@ -378,7 +409,7 @@ def _update_actual_header_h() -> None:
         f   = get_font(HEADER_FONT_PT)
         bb  = f.getbbox("Agあ|")          # アセンダ〜ディセンダを含む代表バウンディングボックス
         fh  = bb[3] - bb[1]               # フォント実高（px）
-        _actual_header_h = TITLE_V_PAD + fh + TITLE_V_PAD + 4   # 上下 pad + テキスト + accent 4px
+        _actual_header_h = TITLE_V_PAD + fh + TITLE_V_PAD + ACCENT_LINE_H
     except Exception:
         _actual_header_h = HEADER_H
 
@@ -811,7 +842,11 @@ def generate_poster(
 ) -> Image.Image:
     """
     1920 × 1080 の Steam 布教まとめポスターを生成して PIL Image として返す。
-    ヘッダー高さは ensure_font() で計算済みの _actual_header_h を使用（フォント実測値ベース）。
+
+    レイアウト:
+      ヘッダー（show_title=True 時のみ）: _actual_header_h px（TITLE_V_PAD×2 + フォント実高 + ACCENT_LINE_H）
+      グリッド: COLS=2 列 × rows 行（num_games から自動算出）
+      フッター: FOOTER_H px（アクセントライン + ウォーターマーク）
     """
     h_font  = get_font(HEADER_FONT_PT)
     _ref_bb = h_font.getbbox("Agあ|")   # text_y のアセンダ補正用
@@ -824,14 +859,13 @@ def generate_poster(
     if show_title:
         draw.rectangle([0, 0, CANVAS_W, layout["header_h"]], fill=theme["header"])
         draw.rectangle(
-            [0, layout["header_h"] - 4, CANVAS_W, layout["header_h"]],
+            [0, layout["header_h"] - ACCENT_LINE_H, CANVAS_W, layout["header_h"]],
             fill=theme["accent"],
         )
         if poster_title.strip():
             tb = draw.textbbox((0, 0), poster_title, font=h_font)
             tw = tb[2] - tb[0]
-            th = tb[3] - tb[1]
-            text_y = TITLE_V_PAD - (_ref_bb[1])   # 上余白 8px（ascender offset 補正）
+            text_y = TITLE_V_PAD - (_ref_bb[1])   # 上余白 TITLE_V_PAD（ascender offset 補正）
             draw.text(
                 ((CANVAS_W - tw) // 2, text_y),
                 poster_title, font=h_font, fill=theme["text1"],
@@ -851,7 +885,7 @@ def generate_poster(
     # フッター帯（ヘッダーと対称的なデザイン）
     footer_y = CANVAS_H - FOOTER_H
     draw.rectangle([0, footer_y, CANVAS_W, CANVAS_H], fill=theme["header"])
-    draw.rectangle([0, footer_y, CANVAS_W, footer_y + 4], fill=theme["accent"])
+    draw.rectangle([0, footer_y, CANVAS_W, footer_y + ACCENT_LINE_H], fill=theme["accent"])
 
     # ウォーターマーク（フッター帯内に縦中央揃えで配置）
     wm_font = get_font(WM_FONT_PT)
@@ -859,7 +893,7 @@ def generate_poster(
     wm_w    = int(draw.textlength(wm_text, font=wm_font))
     wm_bb   = draw.textbbox((0, 0), wm_text, font=wm_font)
     wm_h    = wm_bb[3] - wm_bb[1]
-    wm_y    = footer_y + 4 + (FOOTER_H - 4 - wm_h) // 2
+    wm_y    = footer_y + ACCENT_LINE_H + (FOOTER_H - ACCENT_LINE_H - wm_h) // 2
     draw.text(
         (CANVAS_W - wm_w - 20, wm_y),
         wm_text, font=wm_font, fill=(90, 90, 90),
@@ -1312,45 +1346,12 @@ def main() -> None:
         st.divider()
         st.markdown("### 開発者をフォロー")
         st.markdown(
-            """
-<style>
-  .x-btn-sidebar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    box-sizing: border-box;
-    background: #000;
-    color: #fff !important;
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 7px 14px;
-    font-size: 0.85rem;
-    font-weight: bold;
-    text-decoration: none !important;
-    line-height: 1.4;
-    white-space: nowrap;
-    transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
-  }
-  .x-btn-sidebar:visited, .x-btn-sidebar:active, .x-btn-sidebar:focus {
-    color: #fff !important;
-    text-decoration: none !important;
-  }
-  .x-btn-sidebar:hover {
-    background: #1a1a1a;
-    border-color: #666;
-    opacity: 0.85;
-    color: #fff !important;
-  }
-</style>
-<a href="https://x.com/Yuki_HERO44" target="_blank" rel="noopener noreferrer" class="x-btn-sidebar">
+            """<a href="https://x.com/Yuki_HERO44" target="_blank" rel="noopener noreferrer" class="x-btn-sidebar">
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="white">
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.258 5.629 5.906-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
   </svg>
   @Yuki_HERO44
-</a>
-""",
+</a>""",
             unsafe_allow_html=True,
         )
 

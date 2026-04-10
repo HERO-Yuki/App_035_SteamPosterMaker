@@ -5,6 +5,37 @@
 
 ---
 
+## v15（2026-04-10）— コードレビュー・リファクタリング
+
+**定数整理**
+- `SEPARATOR_W = 0` 削除（描画コードは v13 で除去済み。未使用定数のみ残存していた）
+- `ACCENT_LINE_H = 4` を新設。ヘッダー・フッター・`_update_actual_header_h()` の3箇所に散在していた `4` をすべて置換
+
+**CSS 重複排除**
+- サイドバーの「開発者をフォロー」ボタン用 `.x-btn-sidebar` スタイルを `st.markdown` インライン定義から `_GLOBAL_CSS` 定数に移動
+- サイドバーの `st.markdown` はアンカータグのみに簡素化
+
+**不要コードの除去**
+- `generate_poster` 内の未使用変数 `th = tb[3] - tb[1]` を削除
+- `generate_poster` のドキュメント文字列を実装の実態（動的 `_actual_header_h`）に合わせて更新
+
+---
+
+## v14（2026-04-10）— ヘッダー高さ完全自動化・中央罫線太く
+
+**ヘッダー高さの完全自動化**
+- `_actual_header_h: int = HEADER_H` グローバル変数を追加
+- `_update_actual_header_h()` ヘルパー関数を追加: `TITLE_V_PAD + fh + TITLE_V_PAD + ACCENT_LINE_H` で計算
+- `ensure_font()` がフォント読み込み成功・失敗問わず `_update_actual_header_h()` を呼ぶよう修正
+- `compute_layout()` が `header_h=None` のとき `HEADER_H` 固定値ではなく `_actual_header_h` を使用
+  → UI のスロットカード高さとポスター出力のヘッダー高さが完全に一致
+- `generate_poster()` から `actual_hh` の手動計算を削除し `compute_layout(show_title, num_games)` に統合
+
+**グリッド中央縦罫線**
+- `CENTER_DIV_W`: 6 → 20 px（左右ゲーム列の境界を太い罫線で視覚的に分離）
+
+---
+
 ## v13（2026-04-10）— プレイ人数フィールド完全撤廃
 
 **背景・目的**
