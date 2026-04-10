@@ -43,6 +43,9 @@ logs/
 temp/
 *.log
 
+# AI 開発ドキュメント（ローカル専用・公開リポジトリに含めない）
+docs/
+
 # Generated images (app writes to BytesIO only, but guard against manual saves)
 *.png
 *.jpg
