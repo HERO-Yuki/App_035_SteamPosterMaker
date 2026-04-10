@@ -30,6 +30,9 @@ $RECYCLE.BIN/
 .env
 .env.local
 
+# Streamlit Secrets (CRITICAL — never commit API keys)
+.streamlit/secrets.toml
+
 # Project Specific
 _archive/
 output/
@@ -37,6 +40,26 @@ logs/
 temp/
 *.log
 
-# Downloaded assets (auto-generated)
+# Generated images (app writes to BytesIO only, but guard against manual saves)
+*.png
+*.jpg
+*.jpeg
+
+# Downloaded / generated font assets
 *.otf
 *.ttf
+*.woff
+*.woff2
+*.eot
+
+# Python version manager
+.python-version
+
+# Test coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Type checking / linting caches
+.mypy_cache/
+.ruff_cache/

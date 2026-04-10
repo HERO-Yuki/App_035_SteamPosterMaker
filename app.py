@@ -6,7 +6,6 @@ Steamゲーム布教まとめ画像（最大10本紹介）自動生成 Webアプ
 # ── Standard Library ───────────────────────────────────────
 import io
 import os
-import re
 import datetime
 from collections import deque
 from functools import lru_cache
@@ -286,133 +285,6 @@ def get_game_details(app_id: int) -> dict:
         }
     except Exception:
         return fallback_network
-
-
-# ═══════════════════════════════════════════════════════════
-#  Steam インポート
-# ═══════════════════════════════════════════════════════════
-
-def _parse_profile_input(text: str) -> tuple[str, str]:
-    """
-    Steam プロフィール URL / vanity 名 / 64bit ID を受け取り
-    ('steamid', value) または ('vanity', value) を返す。
-    """
-    text = text.strip().rstrip("/")
-    m = re.search(r"profiles[/\\](\d{17})", text)
-    if m:
-        return "steamid", m.group(1)
-    m = re.search(r"/id/([^/?]+)", text)
-    if m:
-        return "vanity", m.group(1)
-    if re.fullmatch(r"\d{17}", text):
-        return "steamid", text
-    if text and re.match(r"^[\w-]+$", text):
-        return "vanity", text
-    return "unknown", text
-
-
-@st.cache_data(ttl=300)
-def fetch_wishlist(profile_input: str) -> tuple[list[dict], str]:
-    """
-    Steam ウィッシュリストを取得する（API キー不要）。
-    Returns: (game_list, error_msg)
-    """
-    kind, value = _parse_profile_input(profile_input)
-    if kind == "steamid":
-        url = f"https://store.steampowered.com/wishlist/profiles/{value}/wishlistdata/?p=0"
-    elif kind == "vanity":
-        url = f"https://store.steampowered.com/wishlist/id/{value}/wishlistdata/?p=0"
-    else:
-        return [], "Steam プロフィール URL または Steam ID を入力してください。"
-    try:
-        resp = requests.get(url, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-        if not isinstance(data, dict) or not data:
-            return [], "ウィッシュリストが空か、非公開設定になっています。"
-        items = sorted(data.items(), key=lambda x: x[1].get("priority", 9999))
-        return [
-            {"app_id": int(aid), "name": info.get("name", f"AppID {aid}")}
-            for aid, info in items[:20]
-        ], ""
-    except Exception as e:
-        return [], f"ウィッシュリストの取得に失敗しました: {e}"
-
-
-def _do_import_games(candidates: list[dict], num_games: int) -> None:
-    """候補リストを空きスロットに順番に追加して st.rerun() で画面を更新する"""
-    empty_slots = [i for i in range(num_games) if st.session_state.games[i] is None]
-    if not empty_slots:
-        st.warning("空きスロットがありません。先にスロットをクリアしてからインポートしてください。")
-        return
-    to_add = candidates[: len(empty_slots)]
-    n_skip = len(candidates) - len(to_add)
-    with st.status(f"{len(to_add)} 本のデータを取得しています...", expanded=True) as status:
-        for cand, slot_idx in zip(to_add, empty_slots):
-            st.write(f"「{cand['name']}」を取得中...")
-            details = get_game_details(cand["app_id"])
-            st.session_state.games[slot_idx] = {
-                "app_id":         cand["app_id"],
-                "title":          details["title"] or cand["name"],
-                "image_url":      details["image_url"],
-                "price":          details["price"],
-                "review":         "",
-                "players":        [],
-                "age_restricted": details.get("age_restricted", False),
-            }
-        label = f"{len(to_add)} 本のインポートが完了しました"
-        if n_skip:
-            label += f"（{n_skip} 本はスロット不足によりスキップ）"
-        status.update(label=label, state="complete", expanded=False)
-    st.rerun()
-
-
-def render_import_section(num_games: int) -> None:
-    """Steam ウィッシュリストからゲームを一括インポートするセクション"""
-    with st.expander("ウィッシュリストからインポート", icon=":material/library_add:", expanded=False):
-        c_url, c_btn = st.columns([5, 1])
-        with c_url:
-            st.text_input(
-                "ウィッシュリスト URL / Steam ID",
-                key="import_wish_url",
-                placeholder="https://store.steampowered.com/wishlist/id/ユーザー名/",
-                label_visibility="collapsed",
-                help="Steam プロフィール URL・vanity 名・64bit Steam ID を入力してください。ウィッシュリストは公開設定が必要です。",
-            )
-        with c_btn:
-            wish_fetch = st.button(
-                "取得", key="import_wish_fetch",
-                icon=":material/search:", use_container_width=True,
-            )
-
-        if wish_fetch:
-            v = st.session_state.get("import_wish_url", "").strip()
-            if v:
-                with st.spinner("ウィッシュリストを取得しています..."):
-                    games, err = fetch_wishlist(v)
-                st.session_state["import_wish_results"] = games
-                if err:
-                    st.error(err)
-            else:
-                st.warning("URL または Steam ID を入力してください。")
-
-        wish_results = st.session_state.get("import_wish_results", [])
-        if wish_results:
-            opts = [f"{g['name']}  (AppID: {g['app_id']})" for g in wish_results]
-            sel = st.multiselect(
-                "インポートするゲームを選択",
-                opts,
-                default=opts[:num_games],
-                key="import_wish_sel",
-                help=f"最大 {num_games} 個まで選択できます",
-            )
-            if st.button(
-                "スロットに追加", key="import_wish_add",
-                icon=":material/add_circle:",
-                type="primary", use_container_width=True, disabled=not sel,
-            ):
-                chosen = [wish_results[opts.index(s)] for s in sel]
-                _do_import_games(chosen, num_games)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -991,7 +863,6 @@ def render_slot_card(i: int) -> None:
 def main() -> None:
     st.set_page_config(
         page_title="SteamPosterMaker",
-        page_icon="🎮",
         layout="wide",
         initial_sidebar_state="collapsed",
     )
@@ -1039,7 +910,7 @@ def main() -> None:
     with col_ttl:
         poster_title = st.text_input(
             "見出しテキスト",
-            value="2024年 神ゲー8選",
+            value="2026年 神ゲー8選",
             max_chars=25,
             placeholder="25文字以内",
             key="poster_title",
@@ -1071,11 +942,6 @@ def main() -> None:
                 f"{layout['num_games']} 本紹介  ·  "
                 f"カード {layout['card_w']} × {layout['card_h']} px"
             )
-
-    st.divider()
-
-    # ── Steam インポート ─────────────────────────────────────
-    render_import_section(num_games)
 
     st.divider()
 
@@ -1141,8 +1007,6 @@ def main() -> None:
             f"未入力の枠 {num_games - filled} 個は「空欄カード」として出力されます。",
             icon=":material/info:",
         )
-    else:
-        st.caption("空のスロットは空欄カードとして出力されます。")
     already_generated = "last_poster_bytes" in st.session_state
     generate_btn = st.button(
         "再生成" if already_generated else "ポスターを生成",
