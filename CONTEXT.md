@@ -65,15 +65,17 @@ App_035_Steam8Poster/
 ## 4. 重要な設計判断 (Key Design Decisions)
 
 ### 動的レイアウト `compute_layout(show_title: bool)`
-- `show_title=True` : ヘッダー 120px + 2列×4行 = **8スロット**（カード 930×215 px）
-- `show_title=False`: ヘッダーなし + 2列×5行 = **10スロット**（カード 930×192 px）
-- どちらも出力は **1920×1080 px 固定**
+- `show_title=True` : ヘッダー 120px + 2列×4行 = **8スロット**（カード 950×227 px）
+- `show_title=False`: ヘッダーなし + 2列×5行 = **10スロット**（カード 950×204 px）
+- どちらも出力は **1920×1080 px 固定**。カード間マージン: **10 px**
 - `title_max_h` を縮小して `review_max_h` を最大化（レビュー文の表示エリアを広く）
 
 ### カードレイアウト
 - サムネ幅: **380 px**（Steam ヘッダー画像 460×215 の約83%を表示）
 - アクセントカラーの縦区切り線（3px）がサムネとテキストを分離
 - 価格: サムネ右下に **半透明バッジ**（`Image.alpha_composite` で合成）として描画
+    - フォント 24pt・端から `PRICE_BADGE_EDGE=10px` の余白
+    - 定数: `PRICE_BADGE_PAD=8`, `PRICE_BADGE_EDGE=10`（モジュール定数）
 - スロット番号バッジ（01, 02...）は廃止
 
 ### 年齢制限コンテンツ
@@ -94,10 +96,22 @@ App_035_Steam8Poster/
 - プレイ人数: 初期 19pt → 最小 13pt
 - レビュー文: 初期 19pt → 最小 11pt
 
+### スロット並べ替えモード
+- ヘッダー行の **「🔀 並び替え」ボタン** で `reorder_mode` フラグをトグル
+- `True` 時: 2×N グリッドを非表示にし `sort_items` の縦リストを全幅表示
+- `False` 時: 通常グリッドを表示
+- ボタンタイプ: 通常モード `secondary` / 並び替えモード `primary`（視認性向上）
+- 旧実装（`st.expander` 内 `sort_items`）は expander が閉じる rerun で変化なしに見えるバグがあったため廃止
+
+### 全体見出し（`poster_title`）
+- `max_chars=25` — 64pt フォント × 1920px ヘッダーに収まる安全上限
+    - 計算根拠: `(1920 - 80px余白) / 70px文字幅 ≈ 26.3` → 25文字
+
 ### セッション状態
 - **ゲームデータ**: `st.session_state.games[i]`（dict or None）
 - **検索結果**: `st.session_state.search_results[i]`
 - ~~`search_queries`~~: UI リファクタ後に未参照となったため削除済み
+- **並べ替えモード**: `st.session_state["reorder_mode"]`（bool）— `init_session()` で初期化
 - **ダイアログ**: `st.session_state["editing_slot"] = i` でポップアップを開く。ダイアログ内ウィジェットは `dlg_review_{i}`, `dlg_players_{i}`, `dlg_q_{i}` キーで管理
 - **ポスター永続化**: 生成した PNG バイト列を `last_poster_bytes` / `last_poster_meta` に保存し、設定変更後のリラン後も表示を維持
 
@@ -142,7 +156,10 @@ App_035_Steam8Poster/
 - [x] フォント自動ダウンロード（Noto Sans CJK JP Bold）
 - [x] PNG ダウンロード（1920×1080）
 - [x] ウォーターマーク
-- [x] コードレビュー・リファクタリング（2026-04-09 v2・v3）
+- [x] 並び替えモードのトグルボタン（expander 廃止・rerun バグ解消）
+- [x] 価格バッジ: フォント 24pt・端余白 10px（PRICE_BADGE_EDGE 定数）
+- [x] 全体見出し文字数上限: 40 → 25文字（64pt フォント幅に基づく計算）
+- [x] コードレビュー・リファクタリング（2026-04-09 v2・v3・v4）
 
 ### 未実装・将来課題 (Todo)
 - [ ] フォント取得の代替 URL（GitHub が落ちている場合のフォールバック）
@@ -170,6 +187,25 @@ App_035_Steam8Poster/
 ---
 
 ## 7. 更新履歴 (Changelog)
+
+### 2026-04-10 v4（コードレビュー・リファクタ）
+
+**バグ修正**
+- `sort_type` 変数が両分岐とも `"secondary"` のデッドコード → `reorder_mode` 中は `"primary"` に修正
+
+**定数・構造整理**
+- `PRICE_BADGE_PAD=8` / `PRICE_BADGE_EDGE=10` をモジュール定数として `draw_card` 内ローカル変数から昇格
+- `generate_poster` のヘッダー文字幅取得: `textlength + textbbox` 二重呼び出しを `textbbox` 一本化
+- `reorder_mode` の初期化を `main()` 内インラインから `init_session()` に集約
+- `compute_layout` docstring のカードサイズ記載を実際の値（950×227 / 950×204）に修正
+- 関数間の3連空白行を PEP 8 準拠の2行に統一
+
+### 2026-04-10 v3.5（UI 細部改善）
+
+- 並び替え: `st.expander` 内 D&D から「🔀 並び替え」トグルボタン + モード切替式に変更
+- 価格バッジ: フォント 16pt → 24pt（1.5倍）、端からの余白 0 → 10px
+- 全体見出し: `max_chars` 40 → 25（ヘッダー幅に基づく上限）
+- `docs/design-decisions.md` 新規作成（UI/UX 判断ログ）
 
 ### 2026-04-09 v2（コードレビュー・リファクタ）
 
