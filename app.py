@@ -29,13 +29,13 @@ CANVAS_W, CANVAS_H = 1920, 1080
 MARGIN     = 4      # カード間マージン（px）
 COLS       = 2      # グリッド列数（固定）
 MAX_GAMES  = 10     # スロット最大数（常に10本固定）
-HEADER_H   = 88     # 全体見出しエリアの高さ（px）
+HEADER_H   = 88     # 全体見出しエリアの高さ（px）— ensure_font() 後に _actual_header_h へ反映
 FOOTER_H   = 36     # フッター帯の高さ（px）— ウォーターマーク領域
 
 # ── カード構造 ───────────────────────────────────────────
 THUMB_W         = 380   # サムネ幅（px）
 SEPARATOR_W     = 0     # サムネ〜テキスト間の縦区切り線幅（px）0=非表示
-CENTER_DIV_W    = 6     # グリッド中央縦罫線の幅（px）
+CENTER_DIV_W    = 20    # グリッド中央縦罫線の幅（px）
 TEXT_PAD        = 12    # テキストエリア内側パディング（px）
 ROW_GAP         = 6     # タイトル〜レビュー間の行間（px）
 TITLE_MAX_H_RATIO = 0.22  # ゲームタイトル最大高さ ÷ カード高さの比率（8本/10本・見出しあり/なしで可変）
@@ -55,6 +55,9 @@ REVIEW_MIN_PT    = 11   # レビュー文（最小）
 PRICE_FONT_PT    = 24   # 価格バッジ
 SLOT_PH_FONT_PT  = 28   # 空スロットプレースホルダ
 WM_FONT_PT       = 22   # ウォーターマーク
+
+# ensure_font() 実行後にフォント実測値で更新される（UI・ポスター両方で共用）
+_actual_header_h: int = HEADER_H
 
 FONT_FILENAME = "NotoSansCJKjp-Bold.otf"
 FONT_URLS = [
@@ -294,13 +297,11 @@ def compute_layout(
 ) -> dict:
     """
     全体見出しの有無・ゲーム本数に応じてレイアウト定数を動的に計算する。
-    header_h が None の場合は HEADER_H 定数を使用（UI 側の概算用）。
-    generate_poster ではフォント実測値から計算した header_h を渡すことで
-    テキストが上下 TITLE_V_PAD(8px) ちょうどに収まるヘッダーを生成する。
+    header_h が None の場合は _actual_header_h（ensure_font で実測更新済み）を使用。
     出力は常に 1920×1080 px 固定。下端は FOOTER_H(36)px のフッター帯で確保。
     """
     if header_h is None:
-        header_h = HEADER_H if show_title else 0
+        header_h = _actual_header_h if show_title else 0
     else:
         header_h = header_h if show_title else 0
     rows      = num_games // COLS
@@ -342,8 +343,11 @@ def ensure_font() -> bool:
     """
     フォントが存在しなければ FONT_URLS を順番に試してダウンロードする（初回起動時のみ）。
     すべて失敗した場合は Pillow デフォルトフォントにフォールバックする。
+    成功・失敗いずれの場合も _actual_header_h をフォント実測値で更新する。
     """
+    global _actual_header_h
     if os.path.exists(FONT_FILENAME):
+        _update_actual_header_h()
         return True
     if st.session_state.get("_font_failed"):
         return False
@@ -354,6 +358,7 @@ def ensure_font() -> bool:
                 resp.raise_for_status()
                 with open(FONT_FILENAME, "wb") as f:
                     f.write(resp.content)
+                _update_actual_header_h()
                 return True
             except Exception:
                 continue
@@ -362,7 +367,20 @@ def ensure_font() -> bool:
         f"（試行した URL: {len(FONT_URLS)} 件）"
     )
     st.session_state["_font_failed"] = True
+    _update_actual_header_h()
     return False
+
+
+def _update_actual_header_h() -> None:
+    """フォント実測値から全体見出しヘッダー高さを計算して _actual_header_h に反映する。"""
+    global _actual_header_h
+    try:
+        f   = get_font(HEADER_FONT_PT)
+        bb  = f.getbbox("Agあ|")          # アセンダ〜ディセンダを含む代表バウンディングボックス
+        fh  = bb[3] - bb[1]               # フォント実高（px）
+        _actual_header_h = TITLE_V_PAD + fh + TITLE_V_PAD + 4   # 上下 pad + テキスト + accent 4px
+    except Exception:
+        _actual_header_h = HEADER_H
 
 
 @lru_cache(maxsize=32)
@@ -793,16 +811,11 @@ def generate_poster(
 ) -> Image.Image:
     """
     1920 × 1080 の Steam 布教まとめポスターを生成して PIL Image として返す。
-    show_title=True : ヘッダー 88px + 2列×5行（10ゲーム）+ フッター 36px
-    show_title=False: ヘッダーなし  + 2列×5行（10ゲーム）+ フッター 36px
+    ヘッダー高さは ensure_font() で計算済みの _actual_header_h を使用（フォント実測値ベース）。
     """
-    # ── ヘッダー高さをフォント実測値から計算 ─────────────────────────
-    # TITLE_V_PAD(8px) 上下 + テキスト実高 + accent 4px が最小ヘッダー高さ
-    h_font      = get_font(HEADER_FONT_PT)
-    _ref_bb     = h_font.getbbox("Agあ|")   # 代表文字でアセンダ/ディセンダを含む高さを測定
-    _font_h     = _ref_bb[3] - _ref_bb[1]
-    actual_hh = TITLE_V_PAD + _font_h + TITLE_V_PAD + 4   # 4 = accent line
-    layout    = compute_layout(show_title, num_games, header_h=actual_hh)
+    h_font  = get_font(HEADER_FONT_PT)
+    _ref_bb = h_font.getbbox("Agあ|")   # text_y のアセンダ補正用
+    layout  = compute_layout(show_title, num_games)   # _actual_header_h を自動参照
 
     theme  = THEMES[theme_name]
     canvas = Image.new("RGB", (CANVAS_W, CANVAS_H), theme["bg"])
