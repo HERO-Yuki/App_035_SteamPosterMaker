@@ -4,6 +4,7 @@ Steamゲーム布教まとめ画像（最大10本紹介）自動生成 Webアプ
 """
 
 # ── Standard Library ───────────────────────────────────────
+import html
 import io
 import os
 import datetime
@@ -64,6 +65,63 @@ APP_NAME = "SteamPosterMaker"
 
 # Windows / URL で使えない文字セット
 _FILENAME_INVALID = set('\\/: *?"<>|\t\n\r')
+
+# X (Twitter) ブランドカラーのリンクボタン HTML
+_X_BUTTON_HTML = """
+<p style='font-size:0.8rem;color:#aaa;margin:4px 0 8px'>
+ご意見・ご要望はこちらまで（夕樹陽彩）
+</p>
+<a href="https://x.com/Yuki_HERO44" target="_blank" rel="noopener noreferrer"
+   style="display:inline-flex;align-items:center;gap:8px;
+          background:#000;color:#fff;
+          border:1px solid #333;border-radius:6px;
+          padding:6px 14px;font-size:0.85rem;font-weight:bold;
+          text-decoration:none;line-height:1.4;">
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.258 5.629 5.906-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+  </svg>
+  𝕏 &nbsp;@Yuki_HERO44
+</a>
+"""
+
+# グローバル CSS（スロットカード高さ揃え + 列ギャップ調整）
+_GLOBAL_CSS = """
+<style>
+/* スロットカード列内のギャップを詰める */
+div[data-testid='stColumn'] > div[data-testid='stVerticalBlock'] { gap: 2px; }
+
+/* ── スロットカード行: 高さを同一に揃える ── */
+/* ボーダーコンテナを含む横並びブロックのみ対象にし、他の行に影響させない */
+[data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"]) {
+    align-items: stretch !important;
+}
+[data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"])
+    > [data-testid="column"] {
+    display: flex !important;
+    flex-direction: column !important;
+}
+/* 列内の中間 div を flex コンテナとして高さを伝播 */
+[data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"])
+    > [data-testid="column"] > div {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+}
+/* stVerticalBlockBorderWrapper 自体と内部 stVerticalBlock を 100% に */
+[data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"])
+    [data-testid="stVerticalBlockBorderWrapper"] {
+    flex: 1 !important;
+    height: 100% !important;
+}
+[data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"])
+    [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+</style>
+"""
 
 
 def _safe_filename(title: str) -> str:
@@ -327,7 +385,9 @@ def _fetch_raw_image(url: str) -> bytes:
 def load_pil_image(url: str, target_w: int, target_h: int) -> Image.Image:
     """
     URL から画像を読み込み、アスペクト比を保ちながら中央クロップして
-    target_w × target_h にリサイズする。失敗時はグレー画像を返す。
+    target_w × target_h にリサイズする（cover モード）。
+    背景ぼかし生成など「領域を全面で埋める」用途で使用。
+    失敗時はグレー画像を返す。
     """
     dummy = Image.new("RGB", (target_w, target_h), (70, 70, 70))
     raw = _fetch_raw_image(url)
@@ -345,6 +405,39 @@ def load_pil_image(url: str, target_w: int, target_h: int) -> Image.Image:
         return img.crop((left, top, left + target_w, top + target_h))
     except Exception:
         return dummy
+
+
+def load_pil_image_contain(
+    url: str,
+    target_w: int,
+    target_h: int,
+    bg_color: tuple = (0, 0, 0),
+) -> Image.Image:
+    """
+    URL から画像を読み込み、アスペクト比を保ったまま target_w × target_h に
+    収まるよう縮小し、余白を bg_color で塗りつぶす（contain / letterbox モード）。
+    サムネイルを切り欠きなく全体表示したい場合に使用。
+    失敗時はグレー画像を返す。
+    """
+    canvas = Image.new("RGB", (target_w, target_h), bg_color)
+    raw = _fetch_raw_image(url)
+    if not raw:
+        return canvas
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+        src_w, src_h = img.size
+        # min スケールで全体が収まる最大サイズを計算
+        scale = min(target_w / src_w, target_h / src_h)
+        new_w = max(1, int(src_w * scale))
+        new_h = max(1, int(src_h * scale))
+        img = img.resize((new_w, new_h), Image.LANCZOS)
+        # 中央揃えで貼り付け
+        left = (target_w - new_w) // 2
+        top  = (target_h - new_h) // 2
+        canvas.paste(img, (left, top))
+        return canvas
+    except Exception:
+        return canvas
 
 
 @lru_cache(maxsize=4)
@@ -518,10 +611,11 @@ def draw_card(
         return
 
     # ─── サムネイル（通常 or 年齢制限アイコン）──────────────
+    # contain モード: 全体が見えるよう縮小し、余白は黒ベタで埋める
     if game.get("age_restricted"):
         thumb = make_age_restricted_image(THUMB_W, L["card_h"])
     else:
-        thumb = load_pil_image(game["image_url"], THUMB_W, L["card_h"])
+        thumb = load_pil_image_contain(game["image_url"], THUMB_W, L["card_h"], bg_color=(0, 0, 0))
     canvas.paste(thumb, (x0, y0))
 
     # ─── 価格バッジ（サムネ右下・半透明オーバーレイ） ────────
@@ -781,41 +875,56 @@ def edit_dialog(i: int) -> None:
             st.session_state[f"dlg_players_{i}"] = []
             st.session_state.search_results[i] = []
 
-    # ── 選択済みゲームの入力フォーム ──────────────────────
+    # ── 選択済みゲームの入力フォーム（Progressive Disclosure）──
+    # 検索結果が表示中（ユーザーがゲームを選んでいる途中）は
+    # レビュー・プレイ人数フォームを非表示にし、認知負荷を下げる。
+    # 表示条件:
+    #   - games[i] が設定済み（ゲームが選択されている）
+    #   - かつ search_results[i] が空（検索候補の選択中でない）
     game = st.session_state.games[i]
-    if game:
+    is_selecting = bool(st.session_state.search_results[i])
+    if game and not is_selecting:
         st.divider()
-        col_img, col_form = st.columns([1, 2])
+
+        # ── ゲーム情報ヘッダー（画像プレビュー + タイトル/価格）──
+        col_img, col_meta = st.columns([5, 7])
         with col_img:
             if game.get("age_restricted"):
-                _show_age_restricted_thumb(padding="24px 0")
+                # 年齢制限: 画像取得不可のためフォールバック表示
+                st.warning("🔞 画像を取得できません", icon=":material/block:")
+            elif game.get("image_url"):
+                st.image(game["image_url"], width=250)
             else:
-                st.image(game["image_url"], use_container_width=True)
-            st.markdown(f"**{game['price']}**")
-        with col_form:
+                st.info("画像URLがありません", icon=":material/image_not_supported:")
+        with col_meta:
             st.markdown(f"### {game['title']}")
-            # ウィジェットの戻り値を直接使用（session_state 経由より1リランぶん遅延しない）
-            review_now = st.text_area(
-                "レビュー文",
-                height=100,
-                key=f"dlg_review_{i}",
-                help="X (Twitter) 投稿を意識して 140 文字以内で。絵文字もOK。",
-            )
-            review_len = len(review_now or "")
-            over_limit = review_len > 140
-            color = "#e74c3c" if over_limit else "#aaa"
-            st.markdown(
-                f"<p style='text-align:right;font-size:0.8rem;color:{color};"
-                f"margin-top:-12px'>{review_len} / 140 文字</p>",
-                unsafe_allow_html=True,
-            )
-            if over_limit:
-                st.error("140 文字を超えています。文字数を減らしてから保存してください。")
-            st.multiselect(
-                "プレイ人数",
-                PLAYER_PRESETS,
-                key=f"dlg_players_{i}",
-            )
+            st.markdown(f"**{game['price']}**")
+
+        st.divider()
+
+        # ── 入力フォーム（フルwidth）──────────────────────────
+        # ウィジェットの戻り値を直接使用（session_state 経由より1リランぶん遅延しない）
+        review_now = st.text_area(
+            "レビュー文",
+            height=100,
+            key=f"dlg_review_{i}",
+            help="X (Twitter) 投稿を意識して 140 文字以内で。絵文字もOK。",
+        )
+        review_len = len(review_now or "")
+        over_limit = review_len > 140
+        color = "#e74c3c" if over_limit else "#aaa"
+        st.markdown(
+            f"<p style='text-align:right;font-size:0.8rem;color:{color};"
+            f"margin-top:-12px'>{review_len} / 140 文字</p>",
+            unsafe_allow_html=True,
+        )
+        if over_limit:
+            st.error("140 文字を超えています。文字数を減らしてから保存してください。")
+        st.multiselect(
+            "プレイ人数",
+            PLAYER_PRESETS,
+            key=f"dlg_players_{i}",
+        )
 
         st.divider()
         col_save, col_clear, col_cancel = st.columns([3, 2, 2])
@@ -873,32 +982,35 @@ def render_slot_card(i: int) -> None:
                 else:
                     st.image(game["image_url"], use_container_width=True)
             with col_info:
-                price_line = (
+                price_raw = (
                     "18+ / 詳細取得不可"
                     if game.get("age_restricted")
                     else game["price"]
                 )
-                players_line = " / ".join(game["players"]) if game.get("players") else ""
+                # 価格を囲み枠バッジで表示
+                price_badge = (
+                    f"<span style='display:inline-block;padding:2px 8px;"
+                    f"border:1px solid #66c0f4;border-radius:4px;"
+                    f"font-size:0.8rem;color:#66c0f4;line-height:1.6;"
+                    f"white-space:nowrap'>{price_raw}</span>"
+                )
+                players_raw = " / ".join(game["players"]) if game.get("players") else ""
+                # プレイ人数を「プレイ人数: ○○」形式で表示
+                players_line = f"プレイ人数: {players_raw}" if players_raw else ""
                 lines = [
-                    f"<p style='margin:0;font-weight:bold;font-size:0.95rem;line-height:1.3'>{game['title']}</p>",
-                    f"<p style='margin:0;font-size:0.88rem;color:#aaa;line-height:1.4'>{price_line}</p>",
+                    f"<p style='margin:0 0 4px;font-weight:bold;font-size:0.95rem;line-height:1.3'>{game['title']}</p>",
+                    f"<p style='margin:0 0 4px'>{price_badge}</p>",
                 ]
                 if players_line:
                     lines.append(
-                        f"<p style='margin:0;font-size:0.88rem;color:#aaa;line-height:1.4'>{players_line}</p>"
+                        f"<p style='margin:0;font-size:0.8rem;color:#aaa;line-height:1.4'>{players_line}</p>"
                     )
                 st.markdown("".join(lines), unsafe_allow_html=True)
             # ── 下段: レビュー文（カード全幅・改行対応） ────────
             review = game.get("review", "")
             if review:
-                # XSS 対策でHTMLエスケープ後、改行を <br> に変換して表示
-                review_escaped = (
-                    review
-                    .replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                    .replace("\n", "<br>")
-                )
+                # html.escape() で XSS 対策済みの後、改行を <br> に変換して表示
+                review_escaped = html.escape(review).replace("\n", "<br>")
                 st.markdown(
                     f"<p style='margin:4px 0 0;font-size:0.8rem;"
                     f"color:#aaa;line-height:1.5'>{review_escaped}</p>",
@@ -933,14 +1045,7 @@ def main() -> None:
 
     init_session()
     ensure_font()
-
-    # スロットカード間の縦ギャップを縮小
-    st.markdown(
-        "<style>"
-        "div[data-testid='stColumn'] > div[data-testid='stVerticalBlock'] { gap: 2px; }"
-        "</style>",
-        unsafe_allow_html=True,
-    )
+    st.markdown(_GLOBAL_CSS, unsafe_allow_html=True)
 
     st.title("SteamPosterMaker")
 
@@ -1111,8 +1216,8 @@ def main() -> None:
                 ]
                 if fetchable:
                     st.write(
-                        f"Steam からゲーム画像を取得しています..."
-                        f" ({len(fetchable)} 本 / {num_games} スロット)"
+                        f"Steam からゲーム画像を取得しています"
+                        f"（{len(fetchable)} 本 / {num_games} スロット）..."
                     )
                     for g in fetchable:
                         _fetch_raw_image(g["image_url"])
@@ -1164,6 +1269,39 @@ def main() -> None:
             mime="image/png",
             type="primary",
             use_container_width=True,
+        )
+
+    # ── 免責事項 ────────────────────────────────────────────
+    st.divider()
+    st.caption(
+        "**本アプリは非公式のファンメイドツールです。**"
+        "　Steam および Valve Corporation とは直接的な関わりはありません。"
+        "Steam の商標・ロゴは Valve Corporation の財産です。"
+    )
+    st.markdown(_X_BUTTON_HTML, unsafe_allow_html=True)
+    with st.expander("利用規約・免責事項"):
+        st.markdown(
+            """
+**著作権について**
+* 本アプリが生成するポスターに含まれるゲームタイトル・サムネイル画像の著作権は、各ゲームパブリッシャーおよび Valve Corporation に帰属します。
+* 生成した画像は、個人利用・SNS投稿（X/Twitterなど）による「ゲームの紹介・布教」を目的とした範囲でのみご利用ください。
+* 商用利用（販売・広告での利用・有償頒布など）は固くお控えください。
+
+**ユーザーの入力内容に関する責任**
+* ユーザーが入力した「レビュー文」等のテキスト内容、およびそれを含む生成画像を利用したことによって生じたトラブル（第三者との紛争や権利侵害など）について、開発者は一切の責任を負いません。公序良俗に反する入力はお控えください。
+
+**Steam API の仕様と年齢制限タイトルについて**
+* 本アプリはゲーム情報の取得に Steam の公開 Web API（認証不要）を使用しています。ユーザーのアカウント情報や個人情報を取得・送信することはありません。
+* **【重要】** APIの仕様上、**「年齢制限（18禁）」が設定されているゲームは、画像や価格情報などを自動取得できません。** 該当タイトルを選択した場合は、自動的に専用のダミー画像（18+アイコン）に置き換わりますのでご了承ください。
+
+**データの保持について**
+* 本アプリ上で入力されたテキストや生成されたポスター画像は、ユーザーのブラウザ上（一時メモリ）でのみ処理されており、開発者のサーバーやデータベースに永続的に保存・収集されることはありません。
+
+**動作保証について**
+* Steam Web API の仕様変更やサーバー状況により、一時的にゲーム情報の取得に失敗する場合があります。
+* 本アプリの動作や出力結果について、開発者は一切の責任を負いません。また、予告なく機能の変更や公開停止を行う場合があります。
+* 本アプリは [Streamlit](https://streamlit.io) を使用して構築されています。Streamlit Cloud の[利用規約](https://streamlit.io/terms-of-use)も併せて適用されます。
+            """
         )
 
     # ── 編集ダイアログを開く ────────────────────────────────

@@ -73,7 +73,8 @@ App_035_SteamPosterMaker/
 - `title_max_h` を縮小して `review_max_h` を最大化（レビュー文の表示エリアを広く）
 
 ### カードレイアウト
-- サムネ幅: **380 px**（Steam ヘッダー画像 460×215 の約83%を表示）
+- サムネ幅: **380 px**
+- サムネ描画モード: **contain（letterbox）** — `load_pil_image_contain()` でアスペクト比を保ったまま全体を表示し、余白は黒ベタで埋める（旧: cover/中央クロップ）
 - アクセントカラーの縦区切り線（3px）がサムネとテキストを分離
 - 価格: サムネ右下に **半透明バッジ**（`Image.alpha_composite` で合成）として描画
     - フォント 24pt・端から `PRICE_BADGE_EDGE=10px` の余白
@@ -139,7 +140,6 @@ App_035_SteamPosterMaker/
 - [x] 2×N グリッド UI（ポスターレイアウトに近しい mini カード）
 - [x] 検索結果にサムネプレビュー
 - [x] 全体見出しトグル（ON: 8スロット / OFF: 10スロット）
-- [x] Steam ウィッシュリストからの一括インポート（API キー不要）
 - [x] 年齢制限ゲームの錠前アイコン（ポスター＋UI 両対応）
 - [x] 価格バッジをサムネ右下に配置（半透明オーバーレイ）
 - [x] タイトルフォント小型化（初期28pt）
@@ -161,9 +161,16 @@ App_035_SteamPosterMaker/
 - [x] 並び替えモードのトグルボタン（expander 廃止・rerun バグ解消）
 - [x] 価格バッジ: フォント 24pt・端余白 10px（PRICE_BADGE_EDGE 定数）
 - [x] 全体見出し文字数上限: 40 → 25文字（64pt フォント幅に基づく計算）
-- [x] コードレビュー・リファクタリング（2026-04-09 v2・v3・v4・v5）
+- [x] コードレビュー・リファクタリング（v2〜v7）
 - [x] アプリ名を `Steam8 Poster` → `SteamPosterMaker` に変更
-- [x] 可変定数を `app.py` 冒頭の定数セクションに集約（HEADER_H, PLAYER_H, ROW_GAP, フォントサイズ群など）
+- [x] 可変定数を `app.py` 冒頭の定数セクションに集約
+- [x] サムネイル描画: cover（クロップ）→ contain（letterbox + 黒ベタ）
+- [x] ダイアログ: ゲーム選択後にヘッダー画像プレビュー（width=250）を表示
+- [x] スロットカード: 価格を囲み枠バッジ（Steam 青ボーダー）で表示
+- [x] スロットカード: プレイ人数を「プレイ人数: ○○」形式で表示
+- [x] スロットカード: 横並び高さ揃え CSS（flex stretch + height:100% 伝播）
+- [x] 免責事項: 5セクション構成に拡充・X ボタン化（ブランドカラー）
+- [x] グローバル CSS を `_GLOBAL_CSS` 定数に集約・X ボタン HTML を `_X_BUTTON_HTML` 定数に抽出
 
 ### 未実装・将来課題 (Todo)
 - [ ] フォント取得の代替 URL（GitHub が落ちている場合のフォールバック）
@@ -180,17 +187,47 @@ App_035_SteamPosterMaker/
 - 新しいライブラリを追加する際はユーザーに確認
 
 ### AI への指示
-- `draw_card` と `generate_poster` の座標計算は `compute_layout()` が返す `dict` のキー経由で行うこと（ハードコード禁止）
+    - `draw_card` と `generate_poster` の座標計算は `compute_layout()` が返す `dict` のキー経由で行うこと（ハードコード禁止）
 - ダイアログ内ウィジェットには `dlg_` プレフィックスを付けること
 - `@st.cache_data` 内で `st.session_state` を書き換えないこと
-- 年齢制限ゲームの UI 表示には `_show_age_restricted_thumb()` を使うこと（HTML を直書きしない）
+- 年齢制限ゲームの UI 表示: スロットカードでは `_show_age_restricted_thumb()`、ダイアログ内では `st.warning()` を使うこと
 - `make_age_restricted_image` は `@lru_cache` 済みなので何度呼んでも安全
 - `ensure_font()` は `main()` の冒頭で一度だけ呼ぶこと
 - ダイアログを開く/閉じる操作は `st.session_state["editing_slot"]` の設定/削除＋`st.rerun()` で行うこと
+- グローバル CSS は `_GLOBAL_CSS` 定数、X ボタン HTML は `_X_BUTTON_HTML` 定数を使うこと（インライン HTML 直書き禁止）
+- HTML エスケープは `html.escape()` を使うこと（手動 `.replace()` 禁止）
 
 ---
 
 ## 7. 更新履歴 (Changelog)
+
+### 2026-04-10 v7（ビジュアル・UX 改善バッチ）
+
+**サムネイル contain 表示**
+- ポスター画像のサムネを cover（中央クロップ）→ contain（letterbox）に変更
+- `load_pil_image_contain(url, w, h, bg_color=(0,0,0))` を追加
+- Steam ヘッダー画像（460×215）がサムネ枠（380px 幅）に全体表示される
+
+**ダイアログ: ゲーム選択後のヘッダー画像プレビュー**
+- Progressive Disclosure 展開後（ゲーム選択済・検索中でない状態）にヘッダー画像を `st.image(width=250)` で表示
+- 年齢制限ゲームは `st.warning("🔞 画像を取得できません")` でフォールバック
+- レビュー・プレイ人数入力欄をフルwidth に変更（旧: 右カラムに収容）
+
+**スロットカード UI**
+- 価格を `border:1px solid #66c0f4` の囲み枠バッジ（Steam 青色）で表示
+- プレイ人数を「プレイ人数: ソロ / オンライン協力」形式で表示
+- スロット横並び高さ揃え CSS を強化（`height:100%` を伝播させる新ルール追加）
+
+**免責事項の拡充**
+- 短文キャプション: 「本アプリは非公式のファンメイドツールです」太字化
+- 折りたたみ内を 5 セクションに整理（著作権・ユーザー責任・Steam API・データ保持・動作保証）
+- 連絡先リンクを X ブランドカラーのボタン形式（黒背景 + SVG ロゴ）に変更
+
+**コードリファクタリング（v7）**
+- `import html` 追加、手動エスケープ `.replace()` を `html.escape()` に統一
+- 2か所に分散していたグローバル CSS を `_GLOBAL_CSS` モジュール定数に統合
+- X ボタン HTML を `_X_BUTTON_HTML` モジュール定数に抽出
+- `main()` のインライン HTML を定数参照に置き換え
 
 ### 2026-04-10 v6（UX 改善バッチ）
 

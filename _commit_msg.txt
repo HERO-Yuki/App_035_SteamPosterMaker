@@ -1,5 +1,0 @@
-chore: rename repository and local folder to App_035_SteamPosterMaker
-
-- GitHub repo renamed via gh CLI
-- Local folder copied to App_035_SteamPosterMaker, git remote URL updated
-- docs/setup-guide.md folder name references updated
