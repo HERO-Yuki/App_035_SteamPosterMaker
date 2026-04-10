@@ -75,7 +75,9 @@ FONT_URLS = [
     # フォールバック: jsDelivr CDN（GitHub 障害時）
     "https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
 ]
-APP_NAME = "SteamPosterMaker"
+APP_NAME      = "SteamPosterMaker"
+# config.toml の primaryColor と一致させる（スティッキーバー・UI 強調色）
+_PRIMARY_COLOR = "#d99200"
 
 # ── 開発者モード ──────────────────────────────────────────
 # False に変更するだけでデバッグ用 UI（テストデータ入力ボタン等）が完全に非表示になる
@@ -185,21 +187,7 @@ div[data-testid='stColumn'] > div[data-testid='stVerticalBlock'] { gap: 2px; }
 }
 section[data-testid="stMain"] { margin-left: 0 !important; }
 
-/* ── スティッキーボトムバー ── */
-.sticky-bottom {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 999;
-  background: #1b2838;
-  border-top: 2px solid #2a475e;
-  padding: 8px 24px 10px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-/* ページ下部にバーの高さ分の余白を確保（コンテンツが隠れないように） */
+/* ページ下部にスティッキーバーの高さ分の余白を確保（コンテンツが隠れないように） */
 section[data-testid="stMain"] > div > div { padding-bottom: 90px !important; }
 
 
@@ -263,6 +251,95 @@ section[data-testid="stMain"] > div > div { padding-bottom: 90px !important; }
 }
 </style>
 """
+
+
+def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> None:
+    """
+    画面下部に固定表示するスティッキーボトムバーを st.markdown で描画する。
+
+    構成: [プログレスバー（固定幅）] [生成 / 再生成ボタン] — 中央寄せ。
+
+    ボタンは純粋な HTML ボタンのため、クリック時は JS で URL クエリパラメータ
+    `?_sg=<timestamp>` を書き換えて Streamlit のリランを誘発する方式を採用。
+    リラン後、main() の冒頭で `st.session_state["_sticky_generate"]` を検知して
+    生成処理を実行する。
+    """
+    btn_label  = "再生成する" if already_generated else "ポスターを生成する"
+    btn_icon   = "refresh"   if already_generated else "palette"
+    pct        = int(filled / num_games * 100) if num_games > 0 else 0
+    btn_bg     = "#555"            if filled == 0 else _PRIMARY_COLOR
+    btn_color  = "#999"            if filled == 0 else "#fff"
+    btn_cursor = "not-allowed"     if filled == 0 else "pointer"
+    disabled   = 'disabled=""'     if filled == 0 else ""
+    onclick    = "" if filled == 0 else (
+        "var u=new URL(window.location.href);"
+        "u.searchParams.set('_sg',Date.now());"
+        "window.location.href=u.toString();"
+    )
+    st.markdown(
+        f"""
+<div id="spm-sticky-bar" style="
+  position:fixed;bottom:0;left:0;right:0;z-index:9999;
+  background:#1b2838;border-top:2px solid #2a475e;
+  padding:8px 0 10px;box-shadow:0 -2px 12px rgba(0,0,0,.5);
+  display:flex;justify-content:center;
+">
+  <div style="display:flex;align-items:center;gap:20px;
+              width:100%;max-width:640px;padding:0 32px;">
+    <div style="width:180px;flex-shrink:0;">
+      <div style="font-size:0.73rem;color:#aaa;margin-bottom:4px;letter-spacing:.03em;">
+        {filled} / {num_games} 本登録
+      </div>
+      <div style="background:#2a475e;border-radius:4px;height:7px;overflow:hidden;">
+        <div style="background:{_PRIMARY_COLOR};width:{pct}%;height:100%;
+                    border-radius:4px;transition:width .3s;"></div>
+      </div>
+    </div>
+    <button {disabled} onclick="{onclick}"
+      style="display:inline-flex;align-items:center;gap:6px;
+             background:{btn_bg};color:{btn_color};border:none;
+             border-radius:6px;padding:9px 22px;font-size:0.9rem;
+             font-weight:bold;cursor:{btn_cursor};white-space:nowrap;
+             transition:opacity .2s;font-family:inherit;"
+      onmouseover="if(!this.disabled)this.style.opacity='.8'"
+      onmouseout="this.style.opacity='1'"
+    >
+      <span style="font-family:'Material Symbols Rounded';font-size:1.15rem;
+                   font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;
+                   line-height:1;vertical-align:middle;">{btn_icon}</span>
+      {btn_label}
+    </button>
+  </div>
+</div>
+<link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+<script>
+(function(){{
+  /* 生成ボタンエリアが見えているときはスティッキーバーを隠す */
+  var BAR = 'spm-sticky-bar';
+  var SEN = 'poster-gen-sentinel';
+  function setup() {{
+    var bar = document.getElementById(BAR);
+    var sen = document.getElementById(SEN);
+    if (!bar || !sen) return false;
+    var io = new IntersectionObserver(function(entries) {{
+      bar.style.display = entries[0].isIntersecting ? 'none' : 'flex';
+    }}, {{ rootMargin: '0px' }});
+    io.observe(sen);
+    return true;
+  }}
+  /* sentinel はページ後半に挿入されるため MutationObserver で待機 */
+  if (!setup()) {{
+    var mo = new MutationObserver(function() {{
+      if (setup()) mo.disconnect();
+    }});
+    mo.observe(document.body, {{ childList: true, subtree: true }});
+  }}
+}})();
+</script>
+""",
+        unsafe_allow_html=True,
+    )
 
 
 def _safe_filename(title: str) -> str:
@@ -1327,72 +1404,15 @@ def main() -> None:
     filled            = sum(1 for g in st.session_state.games[:num_games] if g is not None)
     already_generated = "last_poster_bytes" in st.session_state
 
-    # ── スティッキーボトムバー（st.markdown でメインフレームに直接注入） ──
-    # st.button はスティッキー内に置けないため、JS クリック → URL クエリ変更
-    # → Streamlit 自動リラン → query_params 検知 → 生成フラグを立てる方式。
+    # ── スティッキーボトムバー ─────────────────────────────────
+    # JS クリック → URL クエリ ?_sg= 変更 → リラン → _sticky_triggered で生成実行
     _sticky_triggered = st.session_state.pop("_sticky_generate", False)
     if st.query_params.get("_sg"):
         st.query_params.clear()
         st.session_state["_sticky_generate"] = True
         st.rerun()
 
-    _btn_label    = "再生成する" if already_generated else "ポスターを生成する"
-    _btn_icon     = "refresh"   if already_generated else "palette"
-    _progress_pct = int(filled / num_games * 100) if num_games > 0 else 0
-    _accent       = "#d99200"
-    _btn_bg       = "#555" if filled == 0 else _accent
-    _btn_color    = "#999" if filled == 0 else "#fff"
-    _btn_cursor   = "not-allowed" if filled == 0 else "pointer"
-    _btn_onclick  = "" if filled == 0 else (
-        "var u=new URL(window.location.href);"
-        "u.searchParams.set('_sg',Date.now());"
-        "window.location.href=u.toString();"
-    )
-    _disabled_attr = 'disabled=""' if filled == 0 else ""
-    st.markdown(
-        f"""
-<div id="spm-sticky-bar" style="
-  position:fixed;bottom:0;left:0;right:0;z-index:9999;
-  background:#1b2838;border-top:2px solid #2a475e;
-  padding:8px 0 10px;
-  box-shadow:0 -2px 12px rgba(0,0,0,.5);
-  display:flex;justify-content:center;
-">
-  <!-- 中央コンテナ: 左右に余白・最大幅制限 -->
-  <div style="display:flex;align-items:center;gap:20px;
-              width:100%;max-width:640px;padding:0 32px;">
-    <!-- プログレスバー（固定幅） -->
-    <div style="width:180px;flex-shrink:0;">
-      <div style="font-size:0.73rem;color:#aaa;margin-bottom:4px;letter-spacing:.03em;">
-        {filled} / {num_games} 本登録
-      </div>
-      <div style="background:#2a475e;border-radius:4px;height:7px;overflow:hidden;">
-        <div style="background:{_accent};width:{_progress_pct}%;height:100%;
-                    border-radius:4px;transition:width .3s;"></div>
-      </div>
-    </div>
-    <!-- 生成ボタン -->
-    <button {_disabled_attr}
-      onclick="{_btn_onclick}"
-      style="display:inline-flex;align-items:center;gap:6px;
-             background:{_btn_bg};color:{_btn_color};border:none;
-             border-radius:6px;padding:9px 22px;font-size:0.9rem;
-             font-weight:bold;cursor:{_btn_cursor};white-space:nowrap;
-             transition:opacity .2s;font-family:inherit;"
-      onmouseover="if(!this.disabled)this.style.opacity='.8'"
-      onmouseout="this.style.opacity='1'"
-    >
-      <span style="font-family:'Material Symbols Rounded';font-size:1.15rem;
-                   font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;
-                   line-height:1;vertical-align:middle;">{_btn_icon}</span>
-      {_btn_label}
-    </button>
-  </div>
-</div>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
-""",
-        unsafe_allow_html=True,
-    )
+    _render_sticky_bar(filled, num_games, already_generated)
 
 
     # ── 開発者ツール（DEV_MODE=True のときのみ表示）────────────────
@@ -1555,6 +1575,8 @@ def main() -> None:
     st.divider()
 
     # ── ポスター生成 ────────────────────────────────────────
+    # sentinel が画面内に入ったら、スティッキーバーの IntersectionObserver が自動で非表示にする
+    st.markdown('<div id="poster-gen-sentinel"></div>', unsafe_allow_html=True)
     if filled > 0 and filled < num_games:
         st.info(
             f"現在 **{filled}** 本のゲームが登録されています。"
@@ -1617,9 +1639,9 @@ def main() -> None:
                 date_str   = datetime.date.today().strftime("%Y%m%d")
                 pick_label = f"{num_games}pick"
                 title_part = _safe_filename(poster_title) if show_title and poster_title.strip() else ""
-                fname_body = f"steam_{pick_label}_{title_part}_{date_str}" if title_part else f"steam_{pick_label}_{date_str}"
+                parts      = ["steam", pick_label] + ([title_part] if title_part else []) + [date_str]
                 st.session_state["last_poster_meta"] = {
-                    "filename": f"{fname_body}.png",
+                    "filename": "_".join(parts) + ".png",
                 }
                 # フラグを立てて、画像表示後に toast を出す（with ブロック内では呼ばない）
                 st.session_state["_poster_complete"] = True
