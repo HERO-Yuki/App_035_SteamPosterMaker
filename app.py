@@ -435,7 +435,7 @@ def get_font(size: int) -> ImageFont.FreeTypeFont:
 #  Steam API
 # ═══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, max_entries=100)
 def search_steam(query: str) -> list[dict]:
     """
     Steam ストア検索 API を呼び出してゲーム候補リストを返す。
@@ -461,7 +461,7 @@ def search_steam(query: str) -> list[dict]:
         return []
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, max_entries=200)
 def get_game_details(app_id: int) -> dict:
     """
     Steam appdetails API からゲーム詳細を取得する。
@@ -525,7 +525,7 @@ def get_game_details(app_id: int) -> dict:
 #  画像ユーティリティ
 # ═══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, max_entries=50)
 def _fetch_raw_image(url: str) -> bytes:
     """画像URLのバイト列をキャッシュ付きで取得（重複リクエスト防止）"""
     try:
@@ -1534,6 +1534,10 @@ def main() -> None:
     if generate_btn or sidebar_generate_btn:
         games_slice = st.session_state.games[:num_games]
 
+        # 前回の巨大画像バイト列を事前に解放し、新旧データのメモリ二重保持を防ぐ
+        for _key in ("last_poster_bytes", "last_poster_meta"):
+            st.session_state.pop(_key, None)
+
         # gen_status.update(state="complete") はストリーミングデルタとして即送信されるため、
         # 画像レンダリング（最終フルステート）より先にブラウザへ届き、タイムラグが生じる。
         # そのため成功時は update を呼ばず with 終了時の自動完了に委ねる。
@@ -1570,6 +1574,7 @@ def main() -> None:
                 st.write("PNG ファイルに書き出しています...")
                 buf = io.BytesIO()
                 poster.save(buf, format="PNG", compress_level=1)
+                poster.close()   # Pillow Image オブジェクトを即時解放（PNG 書き出し完了後は不要）
                 st.session_state["last_poster_bytes"] = buf.getvalue()
                 date_str   = datetime.date.today().strftime("%Y%m%d")
                 pick_label = "10pick"
