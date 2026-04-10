@@ -1524,11 +1524,17 @@ def main() -> None:
 
     # ── ゲームスロット（2列グリッド） ───────────────────────
     # filled / already_generated はページ冒頭で先行計算済み
-    col_hdr, col_cnt, col_sort = st.columns([3, 1, 1])
+    col_hdr, col_cnt, col_sort = st.columns([3, 1, 1], vertical_alignment="center")
     with col_hdr:
         st.subheader("ゲームスロット")
     with col_cnt:
-        st.metric("登録数", f"{filled} / {num_games}")
+        st.markdown(
+            f"<p style='margin:0;text-align:right;white-space:nowrap;'>"
+            f"<span style='font-size:0.8rem;color:#aaa;margin-right:6px;'>登録数</span>"
+            f"<span style='font-size:1.15rem;font-weight:bold;'>{filled} / {num_games}</span>"
+            f"</p>",
+            unsafe_allow_html=True,
+        )
     with col_sort:
         sort_label = "並び替え完了" if st.session_state["reorder_mode"] else "並び替え"
         sort_icon  = ":material/done_all:" if st.session_state["reorder_mode"] else ":material/swap_vert:"
