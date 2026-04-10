@@ -1388,6 +1388,7 @@ def render_slot_card(i: int, disabled: bool = False) -> None:
 def main() -> None:
     st.set_page_config(
         page_title="SteamPosterMaker",
+        page_icon="🎮",
         layout="wide",
     )
 
