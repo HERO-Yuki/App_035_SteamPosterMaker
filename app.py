@@ -54,11 +54,27 @@ SLOT_PH_FONT_PT  = 28   # 空スロットプレースホルダ
 WM_FONT_PT       = 22   # ウォーターマーク
 
 FONT_FILENAME = "NotoSansCJKjp-Bold.otf"
-FONT_URL = (
-    "https://github.com/googlefonts/noto-cjk/raw/main"
-    "/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf"
-)
+FONT_URLS = [
+    # プライマリ: GitHub 公式リポジトリ
+    "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
+    # フォールバック: jsDelivr CDN（GitHub 障害時）
+    "https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
+]
 APP_NAME = "SteamPosterMaker"
+
+# Windows / URL で使えない文字セット
+_FILENAME_INVALID = set('\\/: *?"<>|\t\n\r')
+
+
+def _safe_filename(title: str) -> str:
+    """
+    ポスタータイトルをダウンロードファイル名に使える文字列に変換する。
+    使用不可文字を _ に置換し、最大 20 文字に切り詰める。
+    """
+    safe = "".join("_" if c in _FILENAME_INVALID else c for c in title.strip())
+    safe = safe.strip("_")
+    return safe[:20] or "poster"
+
 
 PLAYER_PRESETS = [
     "ソロ", "ローカル協力", "ローカル対戦",
@@ -160,24 +176,30 @@ def compute_layout(show_title: bool) -> dict:
 # ═══════════════════════════════════════════════════════════
 
 def ensure_font() -> bool:
-    """フォントが存在しなければ GitHub からダウンロードする（初回起動時のみ）"""
+    """
+    フォントが存在しなければ FONT_URLS を順番に試してダウンロードする（初回起動時のみ）。
+    すべて失敗した場合は Pillow デフォルトフォントにフォールバックする。
+    """
     if os.path.exists(FONT_FILENAME):
         return True
     if st.session_state.get("_font_failed"):
         return False
-    try:
-        with st.spinner("フォントをセットアップしています（初回のみ）..."):
-            resp = requests.get(FONT_URL, timeout=120)
-            resp.raise_for_status()
-            with open(FONT_FILENAME, "wb") as f:
-                f.write(resp.content)
-        return True
-    except Exception as e:
-        st.warning(
-            f"フォントのダウンロードに失敗しました。システムフォントで代替します。\n詳細: {e}"
-        )
-        st.session_state["_font_failed"] = True
-        return False
+    with st.spinner("フォントをセットアップしています（初回のみ）..."):
+        for url in FONT_URLS:
+            try:
+                resp = requests.get(url, timeout=120)
+                resp.raise_for_status()
+                with open(FONT_FILENAME, "wb") as f:
+                    f.write(resp.content)
+                return True
+            except Exception:
+                continue
+    st.warning(
+        "フォントのダウンロードに失敗しました。システムフォントで代替します。\n"
+        f"（試行した URL: {len(FONT_URLS)} 件）"
+    )
+    st.session_state["_font_failed"] = True
+    return False
 
 
 @lru_cache(maxsize=32)
@@ -655,7 +677,7 @@ def edit_dialog(i: int) -> None:
             st.text_input(
                 "ゲームを検索",
                 key=f"dlg_q_{i}",
-                placeholder="タイトルを入力して Enter（日本語・英語どちらでも）",
+                placeholder="タイトル（日英）または AppID（例: 570）を入力して Enter",
                 label_visibility="collapsed",
             )
         with col_btn:
@@ -665,7 +687,39 @@ def edit_dialog(i: int) -> None:
 
     if search_clicked:
         q = st.session_state.get(f"dlg_q_{i}", "").strip()
-        if q:
+        if not q:
+            st.warning("キーワードを入力してください。")
+        elif q.isdigit():
+            # AppID 直接入力: 数字のみの入力は Steam AppID として扱う
+            app_id = int(q)
+            with st.spinner(f"AppID {app_id} のデータを取得しています..."):
+                details = get_game_details(app_id)
+            if details.get("age_restricted"):
+                st.warning(
+                    "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
+                    "ポスターには制限マークが表示されます。",
+                    icon=":material/block:",
+                )
+            elif not details.get("title"):
+                st.warning(
+                    f"AppID {app_id} のゲーム情報が取得できませんでした。"
+                    "ID が正しいか確認してください。",
+                    icon=":material/error:",
+                )
+            st.session_state.games[i] = {
+                "app_id":         app_id,
+                "title":          details.get("title") or f"AppID {app_id}",
+                "image_url":      details.get("image_url"),
+                "price":          details.get("price", "不明"),
+                "review":         "",
+                "players":        [],
+                "age_restricted": details.get("age_restricted", False),
+            }
+            st.session_state[f"dlg_review_{i}"] = ""
+            st.session_state[f"dlg_players_{i}"] = []
+            st.session_state.search_results[i] = []
+        else:
+            # 通常のテキスト検索
             with st.spinner(f"「{q}」を検索しています..."):
                 results = search_steam(q)
             st.session_state.search_results[i] = results
@@ -675,8 +729,6 @@ def edit_dialog(i: int) -> None:
                     "該当するゲームが見つかりませんでした。"
                     "別のキーワードを試すか、しばらく待ってから再検索してください。"
                 )
-        else:
-            st.warning("キーワードを入力してください。")
 
     # ── 検索結果 + サムネプレビュー ──────────────────────
     results = st.session_state.search_results[i]
@@ -836,10 +888,22 @@ def render_slot_card(i: int) -> None:
                         f"<p style='margin:0;font-size:0.88rem;color:#aaa;line-height:1.4'>{players_line}</p>"
                     )
                 st.markdown("".join(lines), unsafe_allow_html=True)
-            # ── 下段: レビュー文（カード全幅） ──────────────────
+            # ── 下段: レビュー文（カード全幅・改行対応） ────────
             review = game.get("review", "")
             if review:
-                st.caption(review)
+                # XSS 対策でHTMLエスケープ後、改行を <br> に変換して表示
+                review_escaped = (
+                    review
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\n", "<br>")
+                )
+                st.markdown(
+                    f"<p style='margin:4px 0 0;font-size:0.8rem;"
+                    f"color:#aaa;line-height:1.5'>{review_escaped}</p>",
+                    unsafe_allow_html=True,
+                )
         else:
             # 空スロットのプレースホルダ
             st.markdown(
@@ -908,15 +972,20 @@ def main() -> None:
             help="OFF にすると見出しなし・10本紹介モードに切り替わります（常に 1920×1080 出力）",
         )
     with col_ttl:
-        poster_title = st.text_input(
-            "見出しテキスト",
-            value="2026年 神ゲー8選",
-            max_chars=25,
-            placeholder="25文字以内",
-            key="poster_title",
-            disabled=not show_title,
-            label_visibility="collapsed",
-        )
+        if show_title:
+            poster_title = st.text_input(
+                "見出しテキスト",
+                value="2026年 神ゲー8選",
+                max_chars=25,
+                placeholder="25文字以内",
+                key="poster_title",
+                label_visibility="collapsed",
+            )
+        else:
+            # トグルOFF時は入力欄を非表示にして説明テキストだけ表示
+            # session_state の値は保持されるため、ON に戻すと入力内容が復元される
+            poster_title = st.session_state.get("poster_title", "")
+            st.caption("見出しなし — 10本紹介モード")
     with col_pop:
         with st.popover("表示設定", icon=":material/settings:", use_container_width=True):
             theme_name = st.selectbox(
@@ -924,6 +993,19 @@ def main() -> None:
                 list(THEMES.keys()),
                 key="theme_sel",
             )
+            # カラースウォッチ（bg / accent / card_bg の3色を表示）
+            _t = THEMES[theme_name]
+            _swatch_html = "".join(
+                f"<span title='{label}' style='display:inline-block;width:22px;height:22px;"
+                f"border-radius:5px;background:rgb{color};margin-right:5px;"
+                f"border:1px solid #555;vertical-align:middle'></span>"
+                for label, color in [
+                    ("背景", _t["bg"]),
+                    ("アクセント", _t["accent"]),
+                    ("カード", _t["card_bg"]),
+                ]
+            )
+            st.markdown(_swatch_html, unsafe_allow_html=True)
             bg_style = st.radio(
                 "背景スタイル",
                 ["blur", "solid"],
@@ -1051,10 +1133,12 @@ def main() -> None:
                 buf = io.BytesIO()
                 poster.save(buf, format="PNG", compress_level=1)
                 st.session_state["last_poster_bytes"] = buf.getvalue()
-                date_str = datetime.date.today().strftime("%Y%m%d")
-                suffix   = "8pick" if show_title else "10pick"
+                date_str   = datetime.date.today().strftime("%Y%m%d")
+                pick_label = "8pick" if show_title else "10pick"
+                title_part = _safe_filename(poster_title) if show_title and poster_title.strip() else ""
+                fname_body = f"steam_{pick_label}_{title_part}_{date_str}" if title_part else f"steam_{pick_label}_{date_str}"
                 st.session_state["last_poster_meta"] = {
-                    "filename": f"steam_{suffix}_{date_str}.png",
+                    "filename": f"{fname_body}.png",
                 }
                 gen_status.update(
                     label="ポスター生成が完了しました", state="complete", expanded=False

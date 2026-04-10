@@ -1,0 +1,9 @@
+feat: UX improvement batch (v6)
+
+- FONT_URLS list + ensure_font() fallback (GitHub -> jsDelivr CDN)
+- _safe_filename() helper: include poster title in download filename
+- Hide title input when global title toggle is OFF (caption only)
+- Review text newline support in slot card UI (st.markdown + <br>)
+- Theme color swatches (bg/accent/card_bg) shown below theme selectbox
+- AppID direct input: numeric-only query calls get_game_details() directly
+- Docs: CONTEXT.md, README.md, design-decisions.md updated for v6
