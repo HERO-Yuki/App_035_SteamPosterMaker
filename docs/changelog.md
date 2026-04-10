@@ -1,0 +1,176 @@
+# SteamPosterMaker — 更新履歴
+
+各バージョンの変更内容を記録したログです。  
+最新バージョンの概要は [`CONTEXT.md`](../CONTEXT.md) のセクション 7 を参照してください。
+
+---
+
+## v9（2026-04-10）— サイドバー強化・開発者モード
+
+**サイドバー: 進捗の可視化**
+- `st.progress(filled / num_games, text=f"進捗: {filled} / {num_games} 本")` をサイドバー最上部に追加
+- ゲーム登録数をスクロールなしで常に確認できる
+
+**サイドバー: CTA ボタン常駐化**
+- 「ポスターを生成」ボタンをサイドバーにも配置（`key="sidebar_generate_btn"`）
+- メイン側ボタンと `generate_btn or sidebar_generate_btn` で同じ生成ロジックを共有
+- `filled == 0` のとき `disabled=True`、生成済みは「再生成」に文言変更
+
+**先行計算のリファクタリング**
+- `show_title / layout / num_games / filled / already_generated` をサイドバーブロックより前で一括計算
+- `main()` 内の重複変数（`filled`, `already_generated`）を削除し、先行計算した値を参照
+
+**開発者モード（`DEV_MODE` フラグ）**
+- `DEV_MODE: bool = True` を定数セクションに追加（`False` に変えるだけで dev UI が非表示）
+- `_DEV_SAMPLE_GAMES`（12タイトル）をモジュール定数として定義
+- サイドバー末尾に「テストデータを入力」ボタンを配置（`DEV_MODE=True` 時のみ表示）
+    - `random.sample` で `num_games` 本分をランダムに選択し全スロットへ一括入力
+    - `dlg_review_{idx}` / `dlg_players_{idx}` / `dlg_search_back_{idx}` も同時にリセット
+
+**バグ修正**
+- テストデータ入力時に `dlg_search_back_{idx}` フラグが残留し、次回ダイアログ開封時に検索フェーズになるバグを修正
+
+---
+
+## v8（2026-04-10）— ダイアログ UI 大幅刷新
+
+**ダイアログ 2フェーズ化**
+- `edit_dialog` を「検索フェーズ」と「編集フェーズ」に完全分離
+    - 検索フェーズ: 検索フォーム + 検索結果リストのみ表示
+    - 編集フェーズ: 検索フォーム/リストは非表示。選択ゲームの画像＋入力フォームのみ
+- フェーズ切替フラグ: `session_state[f"dlg_search_back_{i}"]` で管理
+- 編集フェーズ上部に「検索に戻る」ボタン（`:material/search:`）を配置
+- 検索フェーズでゲーム選択済みの場合は「編集に戻る」ボタンも表示
+
+**編集フェーズの 2カラムレイアウト**
+- `st.columns([1, 2])` で左=ゲーム画像（比率1）/ 右=タイトル・価格バッジ・プレイ人数・レビュー文（比率2）のダッシュボード風レイアウトを実現
+- 検索候補画像と選択ゲーム画像が縦に2枚重なっていた問題を解消
+
+**バグ修正**
+- ダイアログを「保存」「キャンセル」で閉じた際に `dlg_search_back_{i}` フラグが残留し、次回開封時に誤って検索フェーズになるバグを修正
+- 「クリア」ボタンでも同フラグを明示的に削除するよう統一
+
+**コードリファクタリング**
+- `_price_badge_html(price_raw: str) -> str` ヘルパーを抽出
+    - `render_slot_card` と `edit_dialog` の両方で使用していた同一の囲み枠バッジ HTML を統一
+    - `html.escape()` による XSS 対策を一元化
+- 編集フェーズ冒頭で `over_limit = False` を防御的に初期化（依存関係を明示）
+
+---
+
+## v7（2026-04-10）— ビジュアル・UX 改善バッチ
+
+**サムネイル contain 表示**
+- ポスター画像のサムネを cover（中央クロップ）→ contain（letterbox）に変更
+- `load_pil_image_contain(url, w, h, bg_color=(0,0,0))` を追加
+
+**ダイアログ: ゲーム選択後のヘッダー画像プレビュー**
+- Progressive Disclosure 展開後にヘッダー画像を表示
+- 年齢制限ゲームは `_show_age_restricted_thumb()` でフォールバック
+- レビュー・プレイ人数入力欄をフルwidthに変更
+
+**スロットカード UI**
+- 価格を `border:1px solid #66c0f4` の囲み枠バッジで表示
+- プレイ人数を「プレイ人数: ソロ / オンライン協力」形式で表示
+- スロット横並び高さ揃え CSS を強化
+
+**免責事項の拡充**
+- 短文キャプション: 「本アプリは非公式のファンメイドツールです」太字化
+- 折りたたみ内を 5 セクションに整理（著作権・ユーザー責任・Steam API・データ保持・動作保証）
+- 連絡先リンクを X ブランドカラーのボタン形式（黒背景 + SVG ロゴ）に変更
+
+**コードリファクタリング**
+- `import html` 追加、手動エスケープ `.replace()` を `html.escape()` に統一
+- グローバル CSS を `_GLOBAL_CSS` 定数に統合
+- X ボタン HTML を `_X_BUTTON_HTML` 定数に抽出
+
+---
+
+## v6（2026-04-10）— UX 改善バッチ
+
+**フォント取得の堅牢化**
+- `FONT_URL` (単一) → `FONT_URLS` (リスト) に変更
+- `ensure_font()` を複数 URL 順試み方式に改修（GitHub → jsDelivr CDN フォールバック）
+
+**ダウンロードファイル名カスタマイズ**
+- `_safe_filename(title)` ヘルパー追加（使用不可文字を `_` 置換、最大20文字）
+- DL ファイル名: `steam_8pick_<タイトル>_YYYYMMDD.png` 形式に変更
+
+**その他**
+- 全体見出しトグル OFF 時: 入力欄非表示 + `st.caption` 表示に変更
+- UIカードのレビュー改行対応（`html.escape()` + `\n` → `<br>`）
+- テーマカラースウォッチ追加（bg / accent / card_bg 3色プレビュー）
+- AppID 直接入力対応（検索フォームで数字のみ入力 → `get_game_details()` を直接呼び出し）
+
+---
+
+## v5（2026-04-10）— 定数集約・アプリ名変更・マージン縮小
+
+- アプリ名変更: `Steam8 Poster` → `SteamPosterMaker`
+- `MARGIN`: 10 → 4 px（カードサイズ 954×235 px / 954×211 px に拡大）
+- `app.py` 冒頭の固定定数セクションにグリッド・タイポグラフィ定数を集約
+- `compute_layout`, `draw_card`, `generate_poster` 内のハードコードをすべて定数参照に置き換え
+
+---
+
+## v4（2026-04-10）— コードレビュー・リファクタ
+
+**バグ修正**
+- `sort_type` 変数が両分岐とも `"secondary"` のデッドコード → `reorder_mode` 中は `"primary"` に修正
+
+**定数・構造整理**
+- `PRICE_BADGE_PAD=8` / `PRICE_BADGE_EDGE=10` をモジュール定数として昇格
+- `generate_poster` のヘッダー文字幅取得: `textlength + textbbox` 二重呼び出しを `textbbox` 一本化
+- `reorder_mode` の初期化を `main()` 内インラインから `init_session()` に集約
+- 関数間の3連空白行を PEP 8 準拠の2行に統一
+
+---
+
+## v3.5（2026-04-10）— UI 細部改善
+
+- 並び替え: `st.expander` 内 D&D から「並び替え」トグルボタン + モード切替式に変更
+- 価格バッジ: フォント 16pt → 24pt（1.5倍）、端からの余白 0 → 10px
+- 全体見出し: `max_chars` 40 → 25（ヘッダー幅に基づく上限）
+- `docs/design-decisions.md` 新規作成（UI/UX 判断ログ）
+
+---
+
+## v3（2026-04-10）— UX ポリッシュ・レイアウト調整
+
+- 検索フォームを `st.form` 化（Enter キー送信対応）
+- レビュー文: `max_chars` 撤廃 → リアルタイム N/140 カウンター＋140字超で保存無効化
+- `st.balloons` → `st.toast` に変更（完了通知を控えめに）
+- サイドバーに開発者フォローリンク（X @Yuki_HERO44）
+- 生成ボタン文言: 初回「生成する」→ 2回目以降「再生成する」に切り替え
+- スロットカード間 CSS gap 2px、レビュー文をカード全幅に移動
+- ポスター MARGIN 20→10px
+
+---
+
+## v2（2026-04-09）— コードレビュー・リファクタ
+
+**バグ修正**
+- `@st.cache_data` 内での `st.session_state` 書き換えを削除（`search_steam`）
+- 年齢制限ゲームに blur 背景処理が走っていた問題を修正（`draw_card`）
+- ポスター生成前の画像プリフェッチで年齢制限ゲームを除外
+
+**改善**
+- `make_age_restricted_image` に `@lru_cache(maxsize=4)` を追加
+- `_show_age_restricted_thumb()` ヘルパーに抽出（重複排除）
+- `st.status` + `st.success` の 2 重表示を解消
+
+**死コード削除**
+- `st.session_state.search_queries`、`_last_search_error` session_state キーを削除
+
+---
+
+## v1（2026-04-09）— 初期実装
+
+- プロジェクト作成・初期実装完了
+- 全体見出しトグル（ON/OFF で 8/10 スロット切替）
+- ポップアップダイアログ + ドラッグ＆ドロップ並べ替え UI
+- 検索結果サムネプレビュー追加
+- サムネ幅 380px・価格バッジをサムネ右下に配置
+- 年齢制限コンテンツの錠前アイコン実装（Pillow 描画）
+- `st.spinner` / `st.status` でローディング表示
+- ポスター永続化（`last_poster_bytes`）・全幅ボタン
