@@ -1479,7 +1479,7 @@ def main() -> None:
             poster_title = st.session_state.get("poster_title", "")
             st.caption("見出しなし")
     with col_pop:
-        with st.popover("表示設定", icon=":material/settings:", use_container_width=True):
+        with st.popover("ゲーム数", icon=":material/grid_view:", use_container_width=True):
             st.radio(
                 "ゲーム数",
                 [8, 10],
@@ -1487,43 +1487,7 @@ def main() -> None:
                 key="num_games_sel",
                 help="8本: カードが大きめ / 10本: カードが小さめ",
             )
-            st.divider()
-            theme_name = st.selectbox(
-                "テーマ",
-                list(THEMES.keys()),
-                key="theme_sel",
-            )
-            # カラースウォッチ（bg / accent / card_bg の3色を表示）
-            _t = THEMES[theme_name]
-            _swatch_html = "".join(
-                f"<span title='{label}' style='display:inline-block;width:22px;height:22px;"
-                f"border-radius:5px;background:rgb{color};margin-right:5px;"
-                f"border:1px solid #555;vertical-align:middle'></span>"
-                for label, color in [
-                    ("背景", _t["bg"]),
-                    ("アクセント", _t["accent"]),
-                    ("カード", _t["card_bg"]),
-                ]
-            )
-            st.markdown(_swatch_html, unsafe_allow_html=True)
-            bg_style = st.radio(
-                "背景スタイル",
-                ["blur", "solid"],
-                format_func=lambda x: "ぼかし" if x == "blur" else "単色",
-                horizontal=True,
-                key="bg_style_sel",
-            )
-            blur_r = 0
-            if bg_style == "blur":
-                blur_r = st.slider(
-                    "ぼかし強度", min_value=1, max_value=40, value=15,
-                    key="blur_r_val",
-                    help="数値が大きいほどぼかしが強くなります",
-                )
-            st.caption(
-                f"{layout['num_games']} 本紹介  ·  "
-                f"カード {layout['card_w']} × {layout['card_h']} px"
-            )
+            st.caption(f"カード {layout['card_w']} × {layout['card_h']} px")
 
     st.divider()
 
@@ -1598,13 +1562,48 @@ def main() -> None:
             f"未入力の枠 {num_games - filled} 個は「空欄カード」として出力されます。",
             icon=":material/info:",
         )
-    generate_btn = st.button(
-        "再生成する" if already_generated else "ポスターを生成する",
-        icon=":material/refresh:" if already_generated else ":material/palette:",
-        type="primary",
-        use_container_width=True,
-        disabled=(filled == 0),
-    )
+    col_design, col_gen = st.columns([1, 2])
+    with col_design:
+        with st.popover("デザイン設定", icon=":material/settings:", use_container_width=True):
+            theme_name = st.selectbox(
+                "テーマ",
+                list(THEMES.keys()),
+                key="theme_sel",
+            )
+            _t = THEMES[theme_name]
+            _swatch_html = "".join(
+                f"<span title='{label}' style='display:inline-block;width:22px;height:22px;"
+                f"border-radius:5px;background:rgb{color};margin-right:5px;"
+                f"border:1px solid #555;vertical-align:middle'></span>"
+                for label, color in [
+                    ("背景", _t["bg"]),
+                    ("アクセント", _t["accent"]),
+                    ("カード", _t["card_bg"]),
+                ]
+            )
+            st.markdown(_swatch_html, unsafe_allow_html=True)
+            bg_style = st.radio(
+                "背景スタイル",
+                ["blur", "solid"],
+                format_func=lambda x: "ぼかし" if x == "blur" else "単色",
+                horizontal=True,
+                key="bg_style_sel",
+            )
+            blur_r = 0
+            if bg_style == "blur":
+                blur_r = st.slider(
+                    "ぼかし強度", min_value=1, max_value=40, value=15,
+                    key="blur_r_val",
+                    help="数値が大きいほどぼかしが強くなります",
+                )
+    with col_gen:
+        generate_btn = st.button(
+            "再生成する" if already_generated else "ポスターを生成する",
+            icon=":material/refresh:" if already_generated else ":material/palette:",
+            type="primary",
+            use_container_width=True,
+            disabled=(filled == 0),
+        )
 
     if generate_btn or _sticky_triggered:
         games_slice = st.session_state.games[:num_games]
