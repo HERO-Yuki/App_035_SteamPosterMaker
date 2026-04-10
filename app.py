@@ -78,7 +78,7 @@ APP_NAME = "SteamPosterMaker"
 
 # ── 開発者モード ──────────────────────────────────────────
 # False に変更するだけでデバッグ用 UI（テストデータ入力ボタン等）が完全に非表示になる
-DEV_MODE: bool = True
+DEV_MODE: bool = False
 
 # テスト入力用サンプルゲームデータ（DEV_MODE=True のときのみ使用）
 _DEV_SAMPLE_GAMES: list[dict] = [
