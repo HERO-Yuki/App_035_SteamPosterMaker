@@ -22,7 +22,7 @@ from streamlit_sortables import sort_items
 #  固定定数
 # ═══════════════════════════════════════════════════════════
 CANVAS_W, CANVAS_H = 1920, 1080
-MARGIN = 20
+MARGIN = 10
 COLS = 2            # 列数（固定）
 MAX_GAMES = 10      # スロット最大数（見出しなし時）
 
@@ -756,19 +756,20 @@ def edit_dialog(i: int) -> None:
     st.caption(f"スロット {i + 1:02d}")
     st.divider()
 
-    # ── 検索フォーム ─────────────────────────────────────
-    col_q, col_btn = st.columns([5, 1])
-    with col_q:
-        st.text_input(
-            "ゲームを検索",
-            key=f"dlg_q_{i}",
-            placeholder="タイトルを入力（日本語・英語どちらでも）",
-            label_visibility="collapsed",
-        )
-    with col_btn:
-        search_clicked = st.button(
-            "🔍", key=f"dlg_search_{i}", use_container_width=True,
-        )
+    # ── 検索フォーム（Enter キー or 🔍 ボタンで送信）────────
+    with st.form(key=f"dlg_form_{i}", border=False):
+        col_q, col_btn = st.columns([5, 1])
+        with col_q:
+            st.text_input(
+                "ゲームを検索",
+                key=f"dlg_q_{i}",
+                placeholder="タイトルを入力してEnter（日本語・英語どちらでも）",
+                label_visibility="collapsed",
+            )
+        with col_btn:
+            search_clicked = st.form_submit_button(
+                "🔍", use_container_width=True,
+            )
 
     if search_clicked:
         q = st.session_state.get(f"dlg_q_{i}", "").strip()
@@ -849,12 +850,22 @@ def edit_dialog(i: int) -> None:
             st.markdown(f"### {game['title']}")
             # value= / default= を渡さない（session_state キーで管理）
             st.text_area(
-                "レビュー文（最大 140 文字）",
-                max_chars=140,
+                "レビュー文",
                 height=100,
                 key=f"dlg_review_{i}",
                 help="X (Twitter) 投稿を意識して 140 文字以内で。絵文字もOK。",
             )
+            review_now = st.session_state.get(f"dlg_review_{i}", "")
+            review_len = len(review_now)
+            over_limit = review_len > 140
+            color = "#e74c3c" if over_limit else "#aaa"
+            st.markdown(
+                f"<p style='text-align:right;font-size:0.8rem;color:{color};"
+                f"margin-top:-12px'>{review_len} / 140 文字</p>",
+                unsafe_allow_html=True,
+            )
+            if over_limit:
+                st.error("140 文字を超えています。文字数を減らしてから保存してください。")
             st.multiselect(
                 "プレイ人数",
                 PLAYER_PRESETS,
@@ -865,7 +876,8 @@ def edit_dialog(i: int) -> None:
         col_save, col_clear, col_cancel = st.columns([3, 2, 2])
         with col_save:
             if st.button("💾 保存して閉じる", key=f"dlg_save_{i}",
-                         type="primary", use_container_width=True):
+                         type="primary", use_container_width=True,
+                         disabled=over_limit):
                 st.session_state.games[i]["review"]  = st.session_state.get(f"dlg_review_{i}", "")
                 st.session_state.games[i]["players"] = st.session_state.get(f"dlg_players_{i}", [])
                 del st.session_state["editing_slot"]
@@ -914,21 +926,21 @@ def render_slot_card(i: int) -> None:
                     st.image(game["image_url"], use_container_width=True)
             with col_info:
                 price_line = (
-                    "🔞 年齢制限 — 詳細取得不可"
+                    "🔞&nbsp;年齢制限 — 詳細取得不可"
                     if game.get("age_restricted")
-                    else f"💴 {game['price']}"
+                    else f"💴&nbsp;{game['price']}"
                 )
                 players_line = (
-                    "👥 " + "  /  ".join(game["players"])
+                    "👥&nbsp;" + "&nbsp;/&nbsp;".join(game["players"])
                     if game.get("players") else ""
                 )
                 lines = [
                     f"<p style='margin:0;font-weight:bold;font-size:0.95rem;line-height:1.3'>{game['title']}</p>",
-                    f"<p style='margin:0;font-size:0.78rem;color:#aaa;line-height:1.4'>{price_line}</p>",
+                    f"<p style='margin:0;font-size:0.88rem;color:#ccc;line-height:1.4'>{price_line}</p>",
                 ]
                 if players_line:
                     lines.append(
-                        f"<p style='margin:0;font-size:0.78rem;color:#aaa;line-height:1.4'>{players_line}</p>"
+                        f"<p style='margin:0;font-size:0.88rem;color:#ccc;line-height:1.4'>{players_line}</p>"
                     )
                 st.markdown("".join(lines), unsafe_allow_html=True)
             # ── 下段: レビュー文（カード全幅） ──────────────────
@@ -966,6 +978,14 @@ def main() -> None:
 
     init_session()
     ensure_font()
+
+    # スロットカード間の縦ギャップを縮小
+    st.markdown(
+        "<style>"
+        "div[data-testid='stColumn'] > div[data-testid='stVerticalBlock'] { gap: 2px; }"
+        "</style>",
+        unsafe_allow_html=True,
+    )
 
     st.title("🎮 Steam8 Poster")
     st.caption("Steamゲーム布教まとめ画像（最大10本紹介）を 1920×1080 で自動生成します。")
@@ -1134,7 +1154,7 @@ def main() -> None:
                 gen_status.update(
                     label="✅ ポスター生成完了！", state="complete", expanded=False
                 )
-                st.balloons()
+                st.toast("🎉 ポスター完成！ダウンロードボタンから保存できます", icon="✅")
             except Exception as e:
                 gen_status.update(label="❌ 生成に失敗しました", state="error")
                 st.error(f"詳細: {e}")
