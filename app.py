@@ -76,8 +76,13 @@ FONT_URLS = [
     "https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
 ]
 APP_NAME      = "SteamPosterMaker"
-# config.toml の primaryColor と一致させる（スティッキーバー・UI 強調色）
+
+# ── Streamlit UI テーマ色（.streamlit/config.toml と同期すること） ──────────
+# primaryColor — スティッキーバーボタン・生成ボタン等の強調色
 _PRIMARY_COLOR = "#d99200"
+# backgroundColor / secondaryBackgroundColor — スティッキーバーの背景・ボーダー色
+_STEAM_BG      = "#1b2838"
+_STEAM_BG2     = "#2a475e"
 
 # ── 開発者モード ──────────────────────────────────────────
 # False に変更するだけでデバッグ用 UI（テストデータ入力ボタン等）が完全に非表示になる
@@ -190,7 +195,6 @@ section[data-testid="stMain"] { margin-left: 0 !important; }
 /* ページ下部にスティッキーバーの高さ分の余白を確保（コンテンツが隠れないように） */
 section[data-testid="stMain"] > div > div { padding-bottom: 90px !important; }
 
-
 /* ── X ブランドリンクボタン ── */
 .x-btn {
   display: inline-flex;
@@ -280,7 +284,7 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
         f"""
 <div id="spm-sticky-bar" style="
   position:fixed;bottom:0;left:0;right:0;z-index:9999;
-  background:#1b2838;border-top:2px solid #2a475e;
+  background:{_STEAM_BG};border-top:2px solid {_STEAM_BG2};
   padding:8px 0 10px;box-shadow:0 -2px 12px rgba(0,0,0,.5);
   display:flex;justify-content:center;
 ">
@@ -291,7 +295,7 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
       <div style="font-size:0.7rem;color:#aaa;margin-bottom:3px;white-space:nowrap;">
         {filled} / {num_games} 本
       </div>
-      <div style="background:#2a475e;border-radius:4px;height:6px;overflow:hidden;">
+      <div style="background:{_STEAM_BG2};border-radius:4px;height:6px;overflow:hidden;">
         <div style="background:{_PRIMARY_COLOR};width:{pct}%;height:100%;
                     border-radius:4px;transition:width .3s;"></div>
       </div>
@@ -412,10 +416,8 @@ def compute_layout(
     header_h が None の場合は _actual_header_h（ensure_font で実測更新済み）を使用。
     出力は常に 1920×1080 px 固定。下端は FOOTER_H(36)px のフッター帯で確保。
     """
-    if header_h is None:
-        header_h = _actual_header_h if show_title else 0
-    else:
-        header_h = header_h if show_title else 0
+    # show_title=False 時は高さ 0（ヘッダー帯なし）。header_h 未指定時はフォント実測値を使用
+    header_h = (header_h if header_h is not None else _actual_header_h) if show_title else 0
     rows      = num_games // COLS
     grid_h    = CANVAS_H - header_h - FOOTER_H
 
@@ -1415,7 +1417,6 @@ def main() -> None:
         st.rerun()
 
     _render_sticky_bar(filled, num_games, already_generated)
-
 
     # ── 開発者ツール（DEV_MODE=True のときのみ表示）────────────────
     if DEV_MODE:
