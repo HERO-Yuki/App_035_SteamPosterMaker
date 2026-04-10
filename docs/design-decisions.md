@@ -1,4 +1,4 @@
-# Steam8 Poster — デザイン・仕様決定ログ
+# SteamPosterMaker — デザイン・仕様決定ログ
 
 開発中に議論・決定した UI/UX 仕様をまとめた記録です。  
 「なぜそうなったか」を後から追えるようにしています。
@@ -189,6 +189,40 @@ Twitter向け横長 1920×1080 に「縦4段」が最も見やすい。
 | フォントサイズ | `0.78rem` → `0.88rem`（視認性改善）|
 | 文字色 | `#aaa` → `#ccc`（やや明るく）|
 | カード間 CSS gap | `2px`（Streamlit デフォルトの間隔を縮小）|
+
+---
+
+## 12. アプリ名変更・定数集約（2026-04-10 v5）
+
+### Q: アプリ名は「Steam8 Poster」のままでよいか？
+
+**決定: `SteamPosterMaker` に変更**
+
+- "8" の数字が10本対応後に誤解を生む（8本専用アプリに見える）
+- 動詞 "Maker" を付けることで「作るツール」の意図が伝わりやすい
+- 変更箇所: `APP_NAME` 定数・`st.title`・`page_title`・ファイルコメント（1か所変えれば他は自動追従）
+
+### Q: カード間マージンをどこまで狭められるか？
+
+**決定: `MARGIN = 4 px`**
+
+| 値 | カードサイズ（見出しON） | 印象 |
+|----|------------------------|------|
+| 20 px（初期） | 930×215 px | 余白が広く窮屈 |
+| 10 px | 950×227 px | バランスが良い |
+| **4 px（採用）** | **954×235 px** | 余白最小・コンテンツ最大化 |
+
+4px は「隣のカードと完全に接しない最小の視覚的区切り」として残す。0にすると境界が消えて読みにくくなるため採用しない。
+
+### Q: ハードコードされた数値が `compute_layout` や `draw_card` に散在していた
+
+**決定: `app.py` 冒頭の定数セクションに集約**
+
+- グリッド系: `HEADER_H`, `PLAYER_H`, `ROW_GAP`, `TITLE_MAX_H_ON/OFF`
+- タイポグラフィ系: `HEADER_FONT_PT`, `TITLE_FONT_PT`, `TITLE_MIN_PT`, `PLAYER_FONT_PT`, `PLAYER_MIN_PT`, `REVIEW_FONT_PT`, `REVIEW_MIN_PT`, `PRICE_FONT_PT`, `SLOT_PH_FONT_PT`, `WM_FONT_PT`
+- 既存: `MARGIN`, `THUMB_W`, `SEPARATOR_W`, `TEXT_PAD`, `PRICE_BADGE_PAD`, `PRICE_BADGE_EDGE`
+
+これにより「どの数値を変えればどこに影響するか」がファイル冒頭だけで把握できる。
 
 ---
 

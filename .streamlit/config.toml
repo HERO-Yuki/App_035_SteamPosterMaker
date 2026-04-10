@@ -1,9 +1,10 @@
 [theme]
-primaryColor = "#66C0F4"
-backgroundColor = "#0E1117"
-secondaryBackgroundColor = "#1B2838"
-textColor = "#C6D4DF"
-font = "sans serif"
+# Steam ライクなダークブルー系テーマ
+primaryColor     = "#5ba3d9"          # メインアクセント（落ち着いた Steam ブルー）
+backgroundColor  = "#0d1117"          # ページ背景（深い黒に近いネイビー）
+secondaryBackgroundColor = "#161d2b"  # カード・サイドバー背景（やや明るいネイビー）
+textColor        = "#d4dfe6"          # 本文（明るすぎない清潔感あるホワイト）
+font             = "sans serif"
 
 [server]
 maxUploadSize = 200

@@ -1,4 +1,4 @@
-# Steam8 Poster — よくあるトラブルと対処法
+# SteamPosterMaker — よくあるトラブルと対処法
 
 ---
 

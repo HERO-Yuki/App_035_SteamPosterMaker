@@ -1,5 +1,5 @@
 """
-App_035 Steam8 Poster
+App_035 SteamPosterMaker
 Steamゲーム布教まとめ画像（最大10本紹介）自動生成 Webアプリ
 """
 
@@ -10,7 +10,6 @@ import re
 import datetime
 from collections import deque
 from functools import lru_cache
-from typing import Optional
 
 # ── Third Party ────────────────────────────────────────────
 import requests
@@ -20,24 +19,47 @@ from streamlit_sortables import sort_items
 
 # ═══════════════════════════════════════════════════════════
 #  固定定数
+#  ── 調整したい数値はすべてここに集約 ──────────────────────
 # ═══════════════════════════════════════════════════════════
-CANVAS_W, CANVAS_H = 1920, 1080
-MARGIN = 10
-COLS = 2            # 列数（固定）
-MAX_GAMES = 10      # スロット最大数（見出しなし時）
 
-THUMB_W = 380           # サムネ幅（Steam header 460×215 の約83%を表示）
-SEPARATOR_W = 3         # アクセント縦区切り線幅
-TEXT_PAD = 12           # テキストエリア内側パディング
-PRICE_BADGE_PAD = 8     # 価格バッジ内テキスト余白
-PRICE_BADGE_EDGE = 10   # 価格バッジとサムネ端の余白
+# ── キャンバス・グリッド ─────────────────────────────────
+CANVAS_W, CANVAS_H = 1920, 1080
+MARGIN     = 4      # カード間マージン（px）
+COLS       = 2      # グリッド列数（固定）
+MAX_GAMES  = 10     # スロット最大数（全体見出しなし時）
+HEADER_H   = 120    # 全体見出しエリアの高さ（px）
+
+# ── カード構造 ───────────────────────────────────────────
+THUMB_W         = 380   # サムネ幅（px）
+SEPARATOR_W     = 3     # アクセント縦区切り線幅（px）
+TEXT_PAD        = 12    # テキストエリア内側パディング（px）
+PLAYER_H        = 26    # プレイ人数行の高さ（px）
+ROW_GAP         = 6     # テキスト行間（px）
+TITLE_MAX_H_ON  = 52    # 全体見出しあり時のタイトル最大高さ（px）
+TITLE_MAX_H_OFF = 42    # 全体見出しなし時のタイトル最大高さ（px）
+
+# ── 価格バッジ ───────────────────────────────────────────
+PRICE_BADGE_PAD  = 8    # バッジ内テキスト余白（px）
+PRICE_BADGE_EDGE = 10   # バッジとサムネ端の余白（px）
+
+# ── タイポグラフィ（ポスター画像上のフォントサイズ / pt）──
+HEADER_FONT_PT   = 64   # 全体見出し
+TITLE_FONT_PT    = 28   # ゲームタイトル（初期）
+TITLE_MIN_PT     = 16   # ゲームタイトル（最小）
+PLAYER_FONT_PT   = 19   # プレイ人数（初期）
+PLAYER_MIN_PT    = 13   # プレイ人数（最小）
+REVIEW_FONT_PT   = 19   # レビュー文（初期）
+REVIEW_MIN_PT    = 11   # レビュー文（最小）
+PRICE_FONT_PT    = 24   # 価格バッジ
+SLOT_PH_FONT_PT  = 28   # 空スロットプレースホルダ
+WM_FONT_PT       = 22   # ウォーターマーク
 
 FONT_FILENAME = "NotoSansCJKjp-Bold.otf"
 FONT_URL = (
     "https://github.com/googlefonts/noto-cjk/raw/main"
     "/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf"
 )
-APP_NAME = "Steam8 Poster"
+APP_NAME = "SteamPosterMaker"
 
 PLAYER_PRESETS = [
     "ソロ", "ローカル協力", "ローカル対戦",
@@ -95,46 +117,42 @@ THEMES: dict[str, dict] = {
 def compute_layout(show_title: bool) -> dict:
     """
     全体見出しの有無に応じてレイアウト定数を動的に計算する。
-    - show_title=True : ヘッダー 120px + 2列×4行 = 8ゲーム（カード 950×227）
-    - show_title=False: ヘッダーなし    + 2列×5行 = 10ゲーム（カード 950×204）
-    いずれも出力は 1920×1080 px 固定。MARGIN=10 px。
+    数値はすべてモジュール定数（MARGIN / HEADER_H / PLAYER_H など）から取得。
+    - show_title=True : HEADER_H px + 2列×4行 = 8ゲーム
+    - show_title=False: ヘッダーなし + 2列×5行 = 10ゲーム
+    いずれも出力は 1920×1080 px 固定。
     """
-    header_h  = 120 if show_title else 0
-    num_games = 8   if show_title else 10
+    header_h  = HEADER_H if show_title else 0
+    num_games = 8        if show_title else MAX_GAMES
     rows      = num_games // COLS
     grid_h    = CANVAS_H - header_h
 
-    card_w = (CANVAS_W - MARGIN * (COLS + 1)) // COLS    # 930
-    card_h = (grid_h   - MARGIN * (rows + 1)) // rows    # 215 or 192
+    card_w = (CANVAS_W - MARGIN * (COLS + 1)) // COLS
+    card_h = (grid_h   - MARGIN * (rows + 1)) // rows
 
-    text_x_offset = THUMB_W + SEPARATOR_W + TEXT_PAD     # 395
-    text_area_w   = card_w - text_x_offset - TEXT_PAD    # 523
+    text_x_offset = THUMB_W + SEPARATOR_W + TEXT_PAD
+    text_area_w   = card_w - text_x_offset - TEXT_PAD
 
-    # 価格はサムネ右下バッジに移したため、テキスト列には価格行を置かない
-    # title_max_h を縮小した分 review_max_h が大幅に増える
-    title_max_h  = 52 if show_title else 42
-    title_y      = TEXT_PAD                               # 12
+    title_max_h  = TITLE_MAX_H_ON if show_title else TITLE_MAX_H_OFF
+    title_y      = TEXT_PAD
 
-    PLAYER_H = 26
-    ROW_GAP  = 6
-
-    player_y     = title_y + title_max_h + ROW_GAP       # 価格行なし
+    player_y     = title_y + title_max_h + ROW_GAP
     review_y     = player_y + PLAYER_H + ROW_GAP
     review_max_h = card_h - review_y - TEXT_PAD
 
     return {
-        "header_h":    header_h,
-        "num_games":   num_games,
-        "rows":        rows,
-        "card_w":      card_w,
-        "card_h":      card_h,
+        "header_h":      header_h,
+        "num_games":     num_games,
+        "rows":          rows,
+        "card_w":        card_w,
+        "card_h":        card_h,
         "text_x_offset": text_x_offset,
-        "text_area_w": text_area_w,
-        "title_y":     title_y,
-        "title_max_h": title_max_h,
-        "player_y":    player_y,
-        "review_y":    review_y,
-        "review_max_h": review_max_h,
+        "text_area_w":   text_area_w,
+        "title_y":       title_y,
+        "title_max_h":   title_max_h,
+        "player_y":      player_y,
+        "review_y":      review_y,
+        "review_max_h":  review_max_h,
     }
 
 
@@ -149,7 +167,7 @@ def ensure_font() -> bool:
     if st.session_state.get("_font_failed"):
         return False
     try:
-        with st.spinner("🔤 フォントをダウンロード中（初回のみ約30秒）..."):
+        with st.spinner("フォントをセットアップしています（初回のみ）..."):
             resp = requests.get(FONT_URL, timeout=120)
             resp.raise_for_status()
             with open(FONT_FILENAME, "wb") as f:
@@ -329,9 +347,9 @@ def _do_import_games(candidates: list[dict], num_games: int) -> None:
         return
     to_add = candidates[: len(empty_slots)]
     n_skip = len(candidates) - len(to_add)
-    with st.status(f"📥 {len(to_add)} 本のゲームデータを取得中...", expanded=True) as status:
+    with st.status(f"{len(to_add)} 本のデータを取得しています...", expanded=True) as status:
         for cand, slot_idx in zip(to_add, empty_slots):
-            st.write(f"🌐 「{cand['name']}」のデータを取得中...")
+            st.write(f"「{cand['name']}」を取得中...")
             details = get_game_details(cand["app_id"])
             st.session_state.games[slot_idx] = {
                 "app_id":         cand["app_id"],
@@ -342,37 +360,35 @@ def _do_import_games(candidates: list[dict], num_games: int) -> None:
                 "players":        [],
                 "age_restricted": details.get("age_restricted", False),
             }
-        label = f"✅ {len(to_add)} 本をインポートしました！"
+        label = f"{len(to_add)} 本のインポートが完了しました"
         if n_skip:
-            label += f"（空きスロット不足のため {n_skip} 本をスキップ）"
+            label += f"（{n_skip} 本はスロット不足によりスキップ）"
         status.update(label=label, state="complete", expanded=False)
     st.rerun()
 
 
 def render_import_section(num_games: int) -> None:
     """Steam ウィッシュリストからゲームを一括インポートするセクション"""
-    with st.expander("📥 ウィッシュリストからインポート（API キー不要）", expanded=False):
-        st.caption(
-            "Steam ウィッシュリストからゲーム情報を一括取得してスロットに仮置きします。"
-            "レビュー文・プレイ人数は後から各スロットで個別に編集できます。"
-        )
-        st.caption("⚠️ ウィッシュリストを**公開設定**にしている必要があります。")
-
+    with st.expander("ウィッシュリストからインポート", icon=":material/library_add:", expanded=False):
         c_url, c_btn = st.columns([5, 1])
         with c_url:
             st.text_input(
                 "ウィッシュリスト URL / Steam ID",
                 key="import_wish_url",
-                placeholder="例: https://store.steampowered.com/wishlist/id/ユーザー名/",
+                placeholder="https://store.steampowered.com/wishlist/id/ユーザー名/",
                 label_visibility="collapsed",
+                help="Steam プロフィール URL・vanity 名・64bit Steam ID を入力してください。ウィッシュリストは公開設定が必要です。",
             )
         with c_btn:
-            wish_fetch = st.button("取得", key="import_wish_fetch", use_container_width=True)
+            wish_fetch = st.button(
+                "取得", key="import_wish_fetch",
+                icon=":material/search:", use_container_width=True,
+            )
 
         if wish_fetch:
             v = st.session_state.get("import_wish_url", "").strip()
             if v:
-                with st.spinner("🔍 ウィッシュリストを取得中..."):
+                with st.spinner("ウィッシュリストを取得しています..."):
                     games, err = fetch_wishlist(v)
                 st.session_state["import_wish_results"] = games
                 if err:
@@ -384,13 +400,15 @@ def render_import_section(num_games: int) -> None:
         if wish_results:
             opts = [f"{g['name']}  (AppID: {g['app_id']})" for g in wish_results]
             sel = st.multiselect(
-                f"インポートするゲームを選択（最大 {num_games} 個）",
+                "インポートするゲームを選択",
                 opts,
                 default=opts[:num_games],
                 key="import_wish_sel",
+                help=f"最大 {num_games} 個まで選択できます",
             )
             if st.button(
-                "📥 選択したゲームをスロットに追加", key="import_wish_add",
+                "スロットに追加", key="import_wish_add",
+                icon=":material/add_circle:",
                 type="primary", use_container_width=True, disabled=not sel,
             ):
                 chosen = [wish_results[opts.index(s)] for s in sel]
@@ -560,7 +578,7 @@ def draw_card(
     canvas: Image.Image,
     draw: ImageDraw.ImageDraw,
     idx: int,
-    game: Optional[dict],
+    game: dict | None,
     theme: dict,
     bg_style: str,
     blur_r: int,
@@ -592,7 +610,7 @@ def draw_card(
 
     # ─── 空スロット ─────────────────────────────────────────
     if game is None:
-        ph_font = get_font(28)
+        ph_font = get_font(SLOT_PH_FONT_PT)
         ph_text = f"SLOT  {idx + 1:02d}"
         pw = int(draw.textlength(ph_text, font=ph_font))
         draw.text(
@@ -613,7 +631,7 @@ def draw_card(
     canvas.paste(thumb, (x0, y0))
 
     # ─── 価格バッジ（サムネ右下・半透明オーバーレイ） ────────
-    price_font = get_font(24)
+    price_font = get_font(PRICE_FONT_PT)
     price_text = game["price"]
     price_bb   = draw.textbbox((0, 0), price_text, font=price_font)
     price_tw   = price_bb[2] - price_bb[0]
@@ -641,7 +659,8 @@ def draw_card(
 
     # ── ゲームタイトル（小さめ・auto-scale） ─────────────────
     t_font, t_wrapped = fit_text_in_box(
-        draw, game["title"], 28, L["text_area_w"], L["title_max_h"], min_size=16
+        draw, game["title"], TITLE_FONT_PT, L["text_area_w"], L["title_max_h"],
+        min_size=TITLE_MIN_PT,
     )
     draw.text((tx, ty + L["title_y"]), t_wrapped, font=t_font, fill=theme["text1"])
 
@@ -649,7 +668,8 @@ def draw_card(
     players = game.get("players", [])
     if players:
         p_font, p_wrapped = fit_text_in_box(
-            draw, "  /  ".join(players), 19, L["text_area_w"], 26, min_size=13
+            draw, "  /  ".join(players), PLAYER_FONT_PT, L["text_area_w"],
+            PLAYER_H, min_size=PLAYER_MIN_PT,
         )
         draw.text((tx, ty + L["player_y"]), p_wrapped, font=p_font, fill=theme["text2"])
 
@@ -657,7 +677,8 @@ def draw_card(
     review = game.get("review", "").strip()
     if review and L["review_max_h"] > 0:
         r_font, r_wrapped = fit_text_in_box(
-            draw, review, 19, L["text_area_w"], L["review_max_h"], min_size=11
+            draw, review, REVIEW_FONT_PT, L["text_area_w"], L["review_max_h"],
+            min_size=REVIEW_MIN_PT,
         )
         draw.text((tx, ty + L["review_y"]), r_wrapped, font=r_font, fill=theme["text2"])
 
@@ -667,7 +688,7 @@ def draw_card(
 # ═══════════════════════════════════════════════════════════
 
 def generate_poster(
-    games: list[Optional[dict]],
+    games: list[dict | None],
     poster_title: str,
     theme_name: str,
     bg_style: str,
@@ -691,7 +712,7 @@ def generate_poster(
             fill=theme["accent"],
         )
         if poster_title.strip():
-            h_font = get_font(64)
+            h_font = get_font(HEADER_FONT_PT)
             tb = draw.textbbox((0, 0), poster_title, font=h_font)
             tw = tb[2] - tb[0]
             th = tb[3] - tb[1]
@@ -703,7 +724,7 @@ def generate_poster(
     for i, game in enumerate(games[: layout["num_games"]]):
         draw_card(canvas, draw, i, game, theme, bg_style, blur_r, layout)
 
-    wm_font = get_font(22)
+    wm_font = get_font(WM_FONT_PT)
     wm_text = f"Generated by {APP_NAME}"
     wm_w    = int(draw.textlength(wm_text, font=wm_font))
     draw.text(
@@ -721,9 +742,9 @@ def generate_poster(
 def _show_age_restricted_thumb(padding: str = "16px 0") -> None:
     """年齢制限スロットのサムネ代替表示（Streamlit UI 用）"""
     st.markdown(
-        f"<div style='background:#160808;border:1px solid #3a1010;"
+        f"<div style='background:#1a0808;border:1px solid #4a1515;"
         f"border-radius:6px;padding:{padding};text-align:center;"
-        f"font-size:2rem;'>🔞</div>",
+        f"color:#c0392b;font-size:1.5rem;font-weight:bold;letter-spacing:0.05em;'>18+</div>",
         unsafe_allow_html=True,
     )
 
@@ -755,25 +776,25 @@ def edit_dialog(i: int) -> None:
     st.caption(f"スロット {i + 1:02d}")
     st.divider()
 
-    # ── 検索フォーム（Enter キー or 🔍 ボタンで送信）────────
+    # ── 検索フォーム（Enter キー or ボタンで送信）────────────
     with st.form(key=f"dlg_form_{i}", border=False):
         col_q, col_btn = st.columns([5, 1])
         with col_q:
             st.text_input(
                 "ゲームを検索",
                 key=f"dlg_q_{i}",
-                placeholder="タイトルを入力してEnter（日本語・英語どちらでも）",
+                placeholder="タイトルを入力して Enter（日本語・英語どちらでも）",
                 label_visibility="collapsed",
             )
         with col_btn:
             search_clicked = st.form_submit_button(
-                "🔍", use_container_width=True,
+                "検索", icon=":material/search:", use_container_width=True,
             )
 
     if search_clicked:
         q = st.session_state.get(f"dlg_q_{i}", "").strip()
         if q:
-            with st.spinner(f"🔍 Steam から「{q}」を検索しています..."):
+            with st.spinner(f"「{q}」を検索しています..."):
                 results = search_steam(q)
             st.session_state.search_results[i] = results
             st.session_state.pop(f"dlg_sel_{i}", None)
@@ -801,7 +822,8 @@ def edit_dialog(i: int) -> None:
                 label_visibility="collapsed",
             )
             confirm_clicked = st.button(
-                "✅ このゲームに決定", key=f"dlg_confirm_{i}",
+                "このゲームに決定", key=f"dlg_confirm_{i}",
+                icon=":material/check_circle:",
             )
         with col_prev:
             chosen_prev = options_map[sel_key]
@@ -813,12 +835,13 @@ def edit_dialog(i: int) -> None:
 
         if confirm_clicked:
             chosen = options_map[sel_key]
-            with st.spinner(f"🌐 Steam から「{chosen['name']}」のデータを取得中..."):
+            with st.spinner(f"「{chosen['name']}」のデータを取得しています..."):
                 details = get_game_details(chosen["app_id"])
             if details.get("age_restricted"):
                 st.warning(
-                    "🔞 このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
-                    "ポスターには鍵アイコンが表示されます。"
+                    "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
+                    "ポスターには制限マークが表示されます。",
+                    icon=":material/block:",
                 )
             st.session_state.games[i] = {
                 "app_id":         chosen["app_id"],
@@ -844,18 +867,17 @@ def edit_dialog(i: int) -> None:
                 _show_age_restricted_thumb(padding="24px 0")
             else:
                 st.image(game["image_url"], use_container_width=True)
-            st.markdown(f"**💴 {game['price']}**")
+            st.markdown(f"**{game['price']}**")
         with col_form:
             st.markdown(f"### {game['title']}")
-            # value= / default= を渡さない（session_state キーで管理）
-            st.text_area(
+            # ウィジェットの戻り値を直接使用（session_state 経由より1リランぶん遅延しない）
+            review_now = st.text_area(
                 "レビュー文",
                 height=100,
                 key=f"dlg_review_{i}",
                 help="X (Twitter) 投稿を意識して 140 文字以内で。絵文字もOK。",
             )
-            review_now = st.session_state.get(f"dlg_review_{i}", "")
-            review_len = len(review_now)
+            review_len = len(review_now or "")
             over_limit = review_len > 140
             color = "#e74c3c" if over_limit else "#aaa"
             st.markdown(
@@ -874,7 +896,8 @@ def edit_dialog(i: int) -> None:
         st.divider()
         col_save, col_clear, col_cancel = st.columns([3, 2, 2])
         with col_save:
-            if st.button("💾 保存して閉じる", key=f"dlg_save_{i}",
+            if st.button("保存して閉じる", key=f"dlg_save_{i}",
+                         icon=":material/save:",
                          type="primary", use_container_width=True,
                          disabled=over_limit):
                 st.session_state.games[i]["review"]  = st.session_state.get(f"dlg_review_{i}", "")
@@ -882,7 +905,8 @@ def edit_dialog(i: int) -> None:
                 del st.session_state["editing_slot"]
                 st.rerun()
         with col_clear:
-            if st.button("🗑️ スロットクリア", key=f"dlg_clear_{i}",
+            if st.button("クリア", key=f"dlg_clear_{i}",
+                         icon=":material/delete:",
                          use_container_width=True):
                 st.session_state.games[i] = None
                 st.session_state.search_results[i] = []
@@ -891,13 +915,14 @@ def edit_dialog(i: int) -> None:
                 del st.session_state["editing_slot"]
                 st.rerun()
         with col_cancel:
-            if st.button("✕ キャンセル", key=f"dlg_cancel_{i}",
+            if st.button("キャンセル", key=f"dlg_cancel_{i}",
+                         icon=":material/close:",
                          use_container_width=True):
                 del st.session_state["editing_slot"]
                 st.rerun()
     else:
         st.info("ゲームを検索してスロットに追加してください。")
-        if st.button("✕ 閉じる", key=f"dlg_close_{i}"):
+        if st.button("閉じる", key=f"dlg_close_{i}", icon=":material/close:"):
             del st.session_state["editing_slot"]
             st.rerun()
 
@@ -925,37 +950,33 @@ def render_slot_card(i: int) -> None:
                     st.image(game["image_url"], use_container_width=True)
             with col_info:
                 price_line = (
-                    "🔞&nbsp;年齢制限 — 詳細取得不可"
+                    "18+ / 詳細取得不可"
                     if game.get("age_restricted")
-                    else f"💴&nbsp;{game['price']}"
+                    else game["price"]
                 )
-                players_line = (
-                    "👥&nbsp;" + "&nbsp;/&nbsp;".join(game["players"])
-                    if game.get("players") else ""
-                )
+                players_line = " / ".join(game["players"]) if game.get("players") else ""
                 lines = [
                     f"<p style='margin:0;font-weight:bold;font-size:0.95rem;line-height:1.3'>{game['title']}</p>",
-                    f"<p style='margin:0;font-size:0.88rem;color:#ccc;line-height:1.4'>{price_line}</p>",
+                    f"<p style='margin:0;font-size:0.88rem;color:#aaa;line-height:1.4'>{price_line}</p>",
                 ]
                 if players_line:
                     lines.append(
-                        f"<p style='margin:0;font-size:0.88rem;color:#ccc;line-height:1.4'>{players_line}</p>"
+                        f"<p style='margin:0;font-size:0.88rem;color:#aaa;line-height:1.4'>{players_line}</p>"
                     )
                 st.markdown("".join(lines), unsafe_allow_html=True)
             # ── 下段: レビュー文（カード全幅） ──────────────────
             review = game.get("review", "")
             if review:
-                st.caption(f"💬 {review}")
+                st.caption(review)
         else:
             # 空スロットのプレースホルダ
             st.markdown(
-                f"<div style='text-align:center; padding:24px 0; "
-                f"color:#666; font-size:0.9rem;'>SLOT {i + 1:02d}<br>"
-                f"<span style='font-size:0.75rem'>クリックして追加</span></div>",
+                f"<div style='text-align:center;padding:20px 0;"
+                f"color:#555;font-size:0.85rem;'>スロット {i + 1:02d}</div>",
                 unsafe_allow_html=True,
             )
 
-        if st.button("✏️ 編集", key=f"btn_edit_{i}", use_container_width=True):
+        if st.button("編集", key=f"btn_edit_{i}", icon=":material/edit:", use_container_width=True):
             st.session_state["editing_slot"] = i
             # ダイアログを開く際にウィジェットをゲームの保存値でリセット
             if game:
@@ -969,7 +990,7 @@ def render_slot_card(i: int) -> None:
 
 def main() -> None:
     st.set_page_config(
-        page_title="Steam8 Poster",
+        page_title="SteamPosterMaker",
         page_icon="🎮",
         layout="wide",
         initial_sidebar_state="collapsed",
@@ -986,60 +1007,70 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    st.title("🎮 Steam8 Poster")
-    st.caption("Steamゲーム布教まとめ画像（最大10本紹介）を 1920×1080 で自動生成します。")
+    st.title("SteamPosterMaker")
 
     with st.sidebar:
-        st.markdown("### 📢 開発者をフォロー")
-        st.caption("アップデート情報やご要望はこちらまで！")
+        st.markdown("### 開発者をフォロー")
         st.link_button(
-            "𝕏 (Twitter) - @Yuki_HERO44",
+            "𝕏  @Yuki_HERO44",
             "https://x.com/Yuki_HERO44",
             use_container_width=True,
         )
 
     st.divider()
 
-    # ── 全体設定 ────────────────────────────────────────────
-    with st.expander("⚙️ 全体設定", expanded=True):
+    # ── 見出し設定（常時表示）+ 表示設定ポップオーバー ────────
+    # show_title をトグルより先にセッション状態から読み取り、compute_layout を
+    # 1 度だけ呼ぶ。その後 3 カラムの with ブロックを連続して展開する。
+    # ※ with ブロックの間に非 UI コードを挟むと Streamlit の列レンダリングが
+    #   分断され、ダイアログ内の再描画タイミングが乱れるため。
+    show_title = st.session_state.get("show_title", True)
+    layout     = compute_layout(show_title)
+    num_games  = layout["num_games"]
+
+    col_tog, col_ttl, col_pop = st.columns([1, 3, 1])
+    with col_tog:
         show_title = st.toggle(
-            "全体見出しを表示する",
+            "全体見出し",
             value=True,
             key="show_title",
-            help="OFF にするとヘッダーが消えて 2列×5行（10本紹介）に切り替わります。常に 1920×1080 で出力。",
+            help="OFF にすると見出しなし・10本紹介モードに切り替わります（常に 1920×1080 出力）",
         )
-
-        c1, c2, c3 = st.columns([3, 2, 2])
-        with c1:
-            poster_title = st.text_input(
-                "全体見出し",
-                value="2024年 神ゲー8選",
-                max_chars=25,
-                placeholder="例: 2024年 神ゲー8選（25文字以内）",
-                key="poster_title",
-                disabled=not show_title,
+    with col_ttl:
+        poster_title = st.text_input(
+            "見出しテキスト",
+            value="2024年 神ゲー8選",
+            max_chars=25,
+            placeholder="25文字以内",
+            key="poster_title",
+            disabled=not show_title,
+            label_visibility="collapsed",
+        )
+    with col_pop:
+        with st.popover("表示設定", icon=":material/settings:", use_container_width=True):
+            theme_name = st.selectbox(
+                "テーマ",
+                list(THEMES.keys()),
+                key="theme_sel",
             )
-        with c2:
-            theme_name = st.selectbox("テーマカラー", list(THEMES.keys()))
-        with c3:
             bg_style = st.radio(
                 "背景スタイル",
                 ["blur", "solid"],
-                format_func=lambda x: "🌫️ ぼかし背景" if x == "blur" else "🎨 単色背景",
+                format_func=lambda x: "ぼかし" if x == "blur" else "単色",
                 horizontal=True,
+                key="bg_style_sel",
             )
-
-        blur_r = 0
-        if bg_style == "blur":
-            blur_r = st.slider("ぼかし強度", min_value=1, max_value=40, value=15)
-
-        layout    = compute_layout(show_title)
-        num_games = layout["num_games"]
-        st.caption(
-            f"現在のレイアウト: **{num_games} 本紹介**  ·  "
-            f"カードサイズ: {layout['card_w']} × {layout['card_h']} px  ·  "
-            f"サムネ幅: {THUMB_W} px"
-        )
+            blur_r = 0
+            if bg_style == "blur":
+                blur_r = st.slider(
+                    "ぼかし強度", min_value=1, max_value=40, value=15,
+                    key="blur_r_val",
+                    help="数値が大きいほどぼかしが強くなります",
+                )
+            st.caption(
+                f"{layout['num_games']} 本紹介  ·  "
+                f"カード {layout['card_w']} × {layout['card_h']} px"
+            )
 
     st.divider()
 
@@ -1053,24 +1084,28 @@ def main() -> None:
 
     col_hdr, col_cnt, col_sort = st.columns([3, 1, 1])
     with col_hdr:
-        st.subheader("🎯 ゲームスロット")
+        st.subheader("ゲームスロット")
     with col_cnt:
         st.metric("登録数", f"{filled} / {num_games}")
     with col_sort:
-        sort_label = "✅ 並び替え完了" if st.session_state["reorder_mode"] else "🔀 並び替え"
+        sort_label = "並び替え完了" if st.session_state["reorder_mode"] else "並び替え"
+        sort_icon  = ":material/done_all:" if st.session_state["reorder_mode"] else ":material/swap_vert:"
         sort_type  = "primary"   if st.session_state["reorder_mode"] else "secondary"
-        if st.button(sort_label, use_container_width=True, type=sort_type):
+        if st.button(sort_label, icon=sort_icon, use_container_width=True, type=sort_type):
             st.session_state["reorder_mode"] = not st.session_state["reorder_mode"]
             st.rerun()
 
     if st.session_state["reorder_mode"]:
         # ── 並び替えモード ────────────────────────────────────
-        st.info("ドラッグして順序を変更し、完了したら **「✅ 並び替え完了」** を押してください。")
+        st.info(
+            "ドラッグして順序を変更し、完了したら「並び替え完了」を押してください。",
+            icon=":material/swap_vert:",
+        )
 
         sort_labels = []
         for idx in range(num_games):
             g = st.session_state.games[idx]
-            sort_labels.append(f"🎮 {g['title']}" if g else f"⬜ 空きスロット {idx + 1:02d}")
+            sort_labels.append(g["title"] if g else f"空きスロット {idx + 1:02d}")
 
         sorted_labels = sort_items(sort_labels, key="slot_sorter")
 
@@ -1102,14 +1137,16 @@ def main() -> None:
     # ── ポスター生成 ────────────────────────────────────────
     if filled > 0 and filled < num_games:
         st.info(
-            f"💡 現在 **{filled}** 本のゲームが登録されています。"
-            f"未入力の枠（{num_games - filled} 個）は「空欄カード」として出力されます。"
+            f"現在 **{filled}** 本のゲームが登録されています。"
+            f"未入力の枠 {num_games - filled} 個は「空欄カード」として出力されます。",
+            icon=":material/info:",
         )
     else:
-        st.caption("※ 空のスロットはそのまま空欄カードとして画像に出力されます。")
+        st.caption("空のスロットは空欄カードとして出力されます。")
     already_generated = "last_poster_bytes" in st.session_state
     generate_btn = st.button(
-        "🔄 ポスターを再生成する" if already_generated else "🎨 ポスターを生成する",
+        "再生成" if already_generated else "ポスターを生成",
+        icon=":material/refresh:" if already_generated else ":material/palette:",
         type="primary",
         use_container_width=True,
         disabled=(filled == 0),
@@ -1117,23 +1154,25 @@ def main() -> None:
 
     if generate_btn:
         games_slice = st.session_state.games[:num_games]
-        targets     = [g for g in games_slice if g is not None]
 
-        with st.status("🎨 ポスターを生成中...", expanded=True) as gen_status:
+        with st.status("ポスターを生成しています...", expanded=True) as gen_status:
             try:
                 # Step 1: Steam CDN から各ゲームのヘッダー画像をフェッチ（キャッシュ優先）
                 # 年齢制限ゲームは CDN 画像が取得できないため除外する
-                fetchable = [g for g in targets if not g.get("age_restricted")]
+                fetchable = [
+                    g for g in games_slice
+                    if g is not None and not g.get("age_restricted")
+                ]
                 if fetchable:
                     st.write(
-                        f"🌐 Steam からゲーム画像を引っ張っています..."
-                        f"（{len(fetchable)} 本 / {num_games} スロット）"
+                        f"Steam からゲーム画像を取得しています..."
+                        f" ({len(fetchable)} 本 / {num_games} スロット)"
                     )
                     for g in fetchable:
                         _fetch_raw_image(g["image_url"])
 
                 # Step 2: Pillow で 1920×1080 px に合成
-                st.write("🖼️  1920 × 1080 px の画像を合成中...")
+                st.write("1920 × 1080 px の画像を合成しています...")
                 poster = generate_poster(
                     games_slice,
                     poster_title,
@@ -1144,7 +1183,7 @@ def main() -> None:
                 )
 
                 # Step 3: PNG エンコード
-                st.write("💾 PNG に書き出し中...")
+                st.write("PNG ファイルに書き出しています...")
                 buf = io.BytesIO()
                 poster.save(buf, format="PNG", compress_level=1)
                 st.session_state["last_poster_bytes"] = buf.getvalue()
@@ -1154,11 +1193,14 @@ def main() -> None:
                     "filename": f"steam_{suffix}_{date_str}.png",
                 }
                 gen_status.update(
-                    label="✅ ポスター生成完了！", state="complete", expanded=False
+                    label="ポスター生成が完了しました", state="complete", expanded=False
                 )
-                st.toast("🎉 ポスター完成！ダウンロードボタンから保存できます", icon="✅")
+                st.toast(
+                    "ポスターが完成しました。ダウンロードボタンから保存できます。",
+                    icon=":material/check_circle:",
+                )
             except Exception as e:
-                gen_status.update(label="❌ 生成に失敗しました", state="error")
+                gen_status.update(label="生成に失敗しました", state="error")
                 st.error(f"詳細: {e}")
 
     # 生成済みポスターを表示（設定変更後も保持）
@@ -1167,7 +1209,8 @@ def main() -> None:
         meta         = st.session_state["last_poster_meta"]
         st.image(poster_bytes, caption="プレビュー（実際は 1920×1080 で出力）", use_container_width=True)
         st.download_button(
-            label="⬇️ PNG でダウンロード",
+            label="PNG でダウンロード",
+            icon=":material/download:",
             data=poster_bytes,
             file_name=meta["filename"],
             mime="image/png",
@@ -1176,7 +1219,7 @@ def main() -> None:
         )
 
     # ── 編集ダイアログを開く ────────────────────────────────
-    # スロットカードの「✏️ 編集」ボタンが押されたとき editing_slot が設定される
+    # スロットカードの「編集」ボタンが押されたとき editing_slot が設定される
     if "editing_slot" in st.session_state:
         slot_idx = st.session_state["editing_slot"]
         if 0 <= slot_idx < MAX_GAMES:

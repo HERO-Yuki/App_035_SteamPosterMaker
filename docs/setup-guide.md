@@ -1,4 +1,4 @@
-# Steam8 Poster — セットアップガイド
+# SteamPosterMaker — セットアップガイド
 
 Steamゲーム布教まとめ画像を自動生成する Webアプリです。  
 **API キーや課金は一切不要**です。Steam の公開 API を使用しています。

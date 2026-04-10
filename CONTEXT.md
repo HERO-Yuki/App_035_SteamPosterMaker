@@ -6,7 +6,7 @@
 
 ## 1. プロジェクト概要 (Overview)
 
-* **アプリ名**: App_035 Steam8 Poster
+* **アプリ名**: App_035 SteamPosterMaker
 * **目的**: Steam ゲーム布教用まとめ画像（最大10本紹介）を X (Twitter) 向けに 1920×1080 PNG で自動生成する Web アプリ
 * **ターゲットユーザー**: Steam ゲームをオススメしたいゲーマー
 * **主要機能**:
@@ -40,7 +40,7 @@
 ## 3. ディレクトリ構造とファイルの役割 (File Structure)
 
 ```text
-App_035_Steam8Poster/
+App_035_SteamPosterMaker/
 ├── app.py                   # アプリ全体（単一ファイル構成）
 │   ├── 固定定数・レイアウト計算 (compute_layout)
 │   ├── テーマカラー定義 (THEMES dict — 5テーマ × 6色)
@@ -65,9 +65,9 @@ App_035_Steam8Poster/
 ## 4. 重要な設計判断 (Key Design Decisions)
 
 ### 動的レイアウト `compute_layout(show_title: bool)`
-- `show_title=True` : ヘッダー 120px + 2列×4行 = **8スロット**（カード 950×227 px）
-- `show_title=False`: ヘッダーなし + 2列×5行 = **10スロット**（カード 950×204 px）
-- どちらも出力は **1920×1080 px 固定**。カード間マージン: **10 px**
+- `show_title=True` : ヘッダー 120px + 2列×4行 = **8スロット**（カード 954×235 px）
+- `show_title=False`: ヘッダーなし + 2列×5行 = **10スロット**（カード 954×211 px）
+- どちらも出力は **1920×1080 px 固定**。カード間マージン: **4 px**（定数 `MARGIN`）
 - `title_max_h` を縮小して `review_max_h` を最大化（レビュー文の表示エリアを広く）
 
 ### カードレイアウト
@@ -92,9 +92,9 @@ App_035_Steam8Poster/
 - `ImageDraw.textlength()` で 1文字ずつ計測するカスタム関数 `wrap_text_pixels()` を実装
 
 ### フォント自動縮小 `fit_text_in_box`
-- タイトル: 初期 **28pt** → 最小 **16pt**
-- プレイ人数: 初期 19pt → 最小 13pt
-- レビュー文: 初期 19pt → 最小 11pt
+- タイトル: 初期 `TITLE_FONT_PT=28` → 最小 `TITLE_MIN_PT=16`
+- プレイ人数: 初期 `PLAYER_FONT_PT=19` → 最小 `PLAYER_MIN_PT=13`
+- レビュー文: 初期 `REVIEW_FONT_PT=19` → 最小 `REVIEW_MIN_PT=11`
 
 ### スロット並べ替えモード
 - ヘッダー行の **「🔀 並び替え」ボタン** で `reorder_mode` フラグをトグル
@@ -152,14 +152,16 @@ App_035_Steam8Poster/
 - [x] スロットカード: フォント・色・行間・絵文字スペースの視認性改善
 - [x] スロットカード間 CSS gap 2px（Streamlit デフォルト間隔を縮小）
 - [x] レビュー文をカード全幅に表示（右カラム外に移動）
-- [x] ポスター MARGIN 20 → 10 px（カードサイズ 950×227 px に拡大）
+- [x] ポスター MARGIN 20 → 10 → 4 px（カードサイズ 954×235 px / 954×211 px に拡大）
 - [x] フォント自動ダウンロード（Noto Sans CJK JP Bold）
 - [x] PNG ダウンロード（1920×1080）
 - [x] ウォーターマーク
 - [x] 並び替えモードのトグルボタン（expander 廃止・rerun バグ解消）
 - [x] 価格バッジ: フォント 24pt・端余白 10px（PRICE_BADGE_EDGE 定数）
 - [x] 全体見出し文字数上限: 40 → 25文字（64pt フォント幅に基づく計算）
-- [x] コードレビュー・リファクタリング（2026-04-09 v2・v3・v4）
+- [x] コードレビュー・リファクタリング（2026-04-09 v2・v3・v4・v5）
+- [x] アプリ名を `Steam8 Poster` → `SteamPosterMaker` に変更
+- [x] 可変定数を `app.py` 冒頭の定数セクションに集約（HEADER_H, PLAYER_H, ROW_GAP, フォントサイズ群など）
 
 ### 未実装・将来課題 (Todo)
 - [ ] フォント取得の代替 URL（GitHub が落ちている場合のフォールバック）
@@ -187,6 +189,22 @@ App_035_Steam8Poster/
 ---
 
 ## 7. 更新履歴 (Changelog)
+
+### 2026-04-10 v5（定数集約・アプリ名変更・マージン縮小）
+
+**アプリ名変更**
+- `Steam8 Poster` → `SteamPosterMaker`（`APP_NAME`, `st.title`, `page_title`, ファイル冒頭コメント）
+- ウォーターマーク表示も自動で更新（`APP_NAME` 定数を参照）
+
+**カード間マージン縮小**
+- `MARGIN`: 10 → 4 px
+- カードサイズ: 950×227 → **954×235 px**（見出しON）/ 950×204 → **954×211 px**（見出しOFF）
+
+**定数集約**
+- `app.py` 冒頭の固定定数セクションに以下を追加・移動：
+    - グリッド: `HEADER_H=120`, `PLAYER_H=26`, `ROW_GAP=6`, `TITLE_MAX_H_ON=52`, `TITLE_MAX_H_OFF=42`
+    - タイポグラフィ: `HEADER_FONT_PT=64`, `TITLE_FONT_PT=28`, `TITLE_MIN_PT=16`, `PLAYER_FONT_PT=19`, `PLAYER_MIN_PT=13`, `REVIEW_FONT_PT=19`, `REVIEW_MIN_PT=11`, `PRICE_FONT_PT=24`, `SLOT_PH_FONT_PT=28`, `WM_FONT_PT=22`
+- `compute_layout`, `draw_card`, `generate_poster` 内のハードコードをすべて定数参照に置き換え
 
 ### 2026-04-10 v4（コードレビュー・リファクタ）
 
