@@ -53,14 +53,14 @@ python --version
 2. ターミナルでそのフォルダを開く
 
 ```
-cd C:\Users\あなたの名前\Downloads\App_035_Steam8Poster
+cd C:\Users\あなたの名前\Downloads\App_035_SteamPosterMaker
 ```
 
 **Git の場合**
 
 ```
 git clone https://github.com/[リポジトリURL].git
-cd App_035_Steam8Poster
+cd App_035_SteamPosterMaker
 ```
 
 ---
