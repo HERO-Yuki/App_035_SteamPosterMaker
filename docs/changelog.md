@@ -5,6 +5,43 @@
 
 ---
 
+## v17（2026-04-10）— コードレビュー・リファクタリング（第2弾）
+
+**定数整理**
+- `_CACHE_TTL / _CACHE_MAX_SEARCH / _CACHE_MAX_DETAILS / _CACHE_MAX_IMAGES` を新設
+  - `@st.cache_data` の `ttl` / `max_entries` がバラバラにハードコードされていた問題を解消
+  - キャッシュ方針の変更が1行で済む
+- `TITLE_BOX_MIN_H = 36` を新設（`compute_layout` 内の `max(36, ...)` マジックナンバーを置換）
+
+**バグ修正・仕様の正確化**
+- `pick_label = "10pick"` 固定 → `f"{num_games}pick"` に変更
+  - 8本モードでも `10pick` というファイル名になっていた問題を修正
+- `poster_title` の `help` テキストを実装と一致させる
+  - 「空欄で見出しエリアなし」は誤り → 「空欄で**テキストのみ**非表示（帯・アクセントラインは残る）」が正しい
+
+**不要コードの除去**
+- `edit_dialog` 編集フェーズの `over_limit = False` 防御的初期化とその4行コメントを削除
+  - Python の `with` ブロックはスコープを作らないため `col_form:` 内の代入はブロック外から参照可能。初期化不要
+
+---
+
+## v16（2026-04-10）— Streamlit Cloud メモリ使用量の最適化
+
+**@st.cache_data への max_entries 追加**
+- `search_steam`: max_entries=100
+- `get_game_details`: max_entries=200
+- `_fetch_raw_image`: max_entries=50（画像バイト列はサイズが大きいため最小値）
+
+**Pillow オブジェクトの明示的解放**
+- `poster.save(buf, ...)` 完了後に `poster.close()` を追加
+- BytesIO への書き出し後は 1920×1080 RGB Image オブジェクト（約 6 MB）が不要になるため即時解放
+
+**セッション状態の先行クリーンアップ**
+- 生成ボタン押下直後、`st.status` ブロック開始前に `last_poster_bytes` / `last_poster_meta` を `pop`
+- 新旧ポスター画像（各 〜5 MB）がメモリ上に同時存在する瞬間を排除
+
+---
+
 ## v15（2026-04-10）— コードレビュー・リファクタリング
 
 **定数整理**

@@ -143,7 +143,9 @@ App_035_SteamPosterMaker/
 - **ポスター永続化**: 生成した PNG バイト列を `last_poster_bytes` / `last_poster_meta` に保存し、設定変更後のリラン後も表示を維持
 
 ### API キャッシュ
-- `@st.cache_data(ttl=3600)` を `search_steam`, `get_game_details`, `_fetch_raw_image` に適用
+- `@st.cache_data(ttl=_CACHE_TTL, max_entries=N)` を `search_steam`, `get_game_details`, `_fetch_raw_image` に適用
+  - TTL・上限は `_CACHE_TTL / _CACHE_MAX_SEARCH / _CACHE_MAX_DETAILS / _CACHE_MAX_IMAGES` で一元管理
+  - 画像キャッシュは 1 エントリが大きいため `max_entries=50` を最小値に設定
 - `@st.cache_data` 内で `st.session_state` を書き換えない（キャッシュヒット時にサイドエフェクトが再実行されないため）
 
 ### ポスター生成フロー（`st.status` で進捗表示）
@@ -213,6 +215,11 @@ App_035_SteamPosterMaker/
 - [x] ヘッダー高さ完全自動化（`ensure_font()` でフォント実測値から `_actual_header_h` を更新）
 - [x] `ACCENT_LINE_H=4` 定数追加・ヘッダー/フッター計算に統一適用
 - [x] `SEPARATOR_W` 削除・`.x-btn-sidebar` CSS を `_GLOBAL_CSS` に統合（重複排除）
+- [x] `_CACHE_TTL / _CACHE_MAX_*` 定数でキャッシュ設定を一元管理
+- [x] `TITLE_BOX_MIN_H=36` 定数追加（`compute_layout` のフロア値）
+- [x] `pick_label` を `num_games` に応じた動的値（`8pick` / `10pick`）に変更
+- [x] `poster.close()` で Pillow Image を PNG 書き出し後に即時解放（メモリ最適化）
+- [x] 生成開始前に `last_poster_bytes` を先行 `pop` して新旧画像の二重保持を排除
 
 ### 未実装・将来課題 (Todo)
 - [ ] フォント取得の代替 URL（GitHub が落ちている場合のフォールバック）
@@ -252,7 +259,9 @@ App_035_SteamPosterMaker/
 
 | バージョン | 日付 | 主な変更 |
 |---|---|---|
-| **v15** | 2026-04-10 | コードレビュー・リファクタ: ACCENT_LINE_H 定数化・CSS 統合・不要定数/変数削除 |
+| **v17** | 2026-04-10 | コードレビュー（第2弾）: キャッシュ定数化・ファイル名バグ修正・help テキスト修正 |
+|| v16 | 2026-04-10 | Streamlit Cloud メモリ最適化: max_entries・poster.close()・先行 pop |
+|| v15 | 2026-04-10 | コードレビュー・リファクタ: ACCENT_LINE_H 定数化・CSS 統合・不要定数/変数削除 |
 || v14 | 2026-04-10 | ヘッダー高さ完全自動化・グリッド中央罫線 20px・TITLE_V_PAD=8px |
 || v13 | 2026-04-10 | プレイ人数フィールド廃止・レビュースペース拡大・文字数上限自動調整 |
 | v12 | 2026-04-10 | ゲーム数 8/10 選択 UI 追加・primaryColor #d99200・サイドバー X ボタン統一 |
@@ -268,4 +277,5 @@ App_035_SteamPosterMaker/
 | v3 | 2026-04-10 | UX ポリッシュ・Enter キー送信・リアルタイムカウンター |
 | v2 | 2026-04-09 | コードレビュー・年齢制限バグ修正・デッドコード削除 |
 | v1 | 2026-04-09 | 初期実装 |
+
 

@@ -38,6 +38,7 @@ CENTER_DIV_W      = 20    # グリッド中央縦罫線の幅（px）
 TEXT_PAD          = 12    # テキストエリア内側パディング（px）
 ROW_GAP           = 6     # タイトル〜レビュー間の行間（px）
 TITLE_MAX_H_RATIO = 0.22  # ゲームタイトル最大高さ ÷ カード高さの比率（8本/10本・見出しあり/なしで可変）
+TITLE_BOX_MIN_H   = 36    # ゲームタイトル最大高さの下限（px）— 極端な縮小を防ぐフロア値
 ACCENT_LINE_H     = 4     # ヘッダー・フッターのアクセントライン高さ（px）
 
 # ── 価格バッジ ───────────────────────────────────────────
@@ -58,6 +59,13 @@ WM_FONT_PT       = 22   # ウォーターマーク
 
 # ensure_font() 実行後にフォント実測値で更新される（UI・ポスター両方で共用）
 _actual_header_h: int = HEADER_H
+
+# ── Steam API キャッシュ設定 ─────────────────────────────
+# Streamlit Community Cloud のメモリ制限（約 1 GB）を考慮した上限値
+_CACHE_TTL         = 3600   # キャッシュ有効期間（秒）
+_CACHE_MAX_SEARCH  = 100    # search_steam: クエリ文字列ごとにキャッシュ
+_CACHE_MAX_DETAILS = 200    # get_game_details: AppID ごとにキャッシュ
+_CACHE_MAX_IMAGES  = 50     # _fetch_raw_image: 画像バイト列は大きいので最小限
 
 FONT_FILENAME = "NotoSansCJKjp-Bold.otf"
 FONT_URLS = [
@@ -345,7 +353,7 @@ def compute_layout(
     text_area_w   = card_w - text_x_offset - TEXT_PAD
 
     # タイトル最大高さはカード高さに比例させる（8本/10本・見出しあり/なしで自動調整）
-    title_max_h  = max(36, int(card_h * TITLE_MAX_H_RATIO))
+    title_max_h  = max(TITLE_BOX_MIN_H, int(card_h * TITLE_MAX_H_RATIO))
     title_y      = TEXT_PAD
 
     review_y     = title_y + title_max_h + ROW_GAP
@@ -435,7 +443,7 @@ def get_font(size: int) -> ImageFont.FreeTypeFont:
 #  Steam API
 # ═══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=3600, max_entries=100)
+@st.cache_data(ttl=_CACHE_TTL, max_entries=_CACHE_MAX_SEARCH)
 def search_steam(query: str) -> list[dict]:
     """
     Steam ストア検索 API を呼び出してゲーム候補リストを返す。
@@ -461,7 +469,7 @@ def search_steam(query: str) -> list[dict]:
         return []
 
 
-@st.cache_data(ttl=3600, max_entries=200)
+@st.cache_data(ttl=_CACHE_TTL, max_entries=_CACHE_MAX_DETAILS)
 def get_game_details(app_id: int) -> dict:
     """
     Steam appdetails API からゲーム詳細を取得する。
@@ -525,7 +533,7 @@ def get_game_details(app_id: int) -> dict:
 #  画像ユーティリティ
 # ═══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=3600, max_entries=50)
+@st.cache_data(ttl=_CACHE_TTL, max_entries=_CACHE_MAX_IMAGES)
 def _fetch_raw_image(url: str) -> bytes:
     """画像URLのバイト列をキャッシュ付きで取得（重複リクエスト防止）"""
     try:
@@ -1117,11 +1125,6 @@ def edit_dialog(i: int) -> None:
 
         st.divider()
 
-        # with col_form 内で定義される over_limit を buttons より前に初期化しておく
-        # （Pythonの with ブロックはスコープを作らないため実際には問題ないが、
-        #   コードの依存関係を明示するための防御的初期化）
-        over_limit = False
-
         # ── 2カラム: 左=画像(1) / 右=タイトル・価格・入力フォーム(2) ──
         col_img, col_form = st.columns([1, 2])
 
@@ -1404,7 +1407,7 @@ def main() -> None:
                 placeholder="25文字以内",
                 key="poster_title",
                 label_visibility="collapsed",
-                help="ポスター上部に大きな文字で表示されるタイトルです。空欄にすると見出しエリアなしで生成されます。",
+                help="ポスター上部に大きな文字で表示されるタイトルです。空欄にすると見出しテキストなし（帯とアクセントラインは残ります）で生成されます。",
             )
         else:
             # トグルOFF時は入力欄を非表示にして説明テキストだけ表示
@@ -1577,7 +1580,7 @@ def main() -> None:
                 poster.close()   # Pillow Image オブジェクトを即時解放（PNG 書き出し完了後は不要）
                 st.session_state["last_poster_bytes"] = buf.getvalue()
                 date_str   = datetime.date.today().strftime("%Y%m%d")
-                pick_label = "10pick"
+                pick_label = f"{num_games}pick"
                 title_part = _safe_filename(poster_title) if show_title and poster_title.strip() else ""
                 fname_body = f"steam_{pick_label}_{title_part}_{date_str}" if title_part else f"steam_{pick_label}_{date_str}"
                 st.session_state["last_poster_meta"] = {
