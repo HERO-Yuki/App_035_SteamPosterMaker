@@ -933,7 +933,6 @@ def generate_poster(
       フッター: FOOTER_H px（アクセントライン + ウォーターマーク）
     """
     h_font  = get_font(HEADER_FONT_PT)
-    _ref_bb = h_font.getbbox("Agあ|")   # text_y のアセンダ補正用
     layout  = compute_layout(show_title, num_games)   # _actual_header_h を自動参照
 
     theme  = THEMES[theme_name]
@@ -949,7 +948,9 @@ def generate_poster(
         if poster_title.strip():
             tb = draw.textbbox((0, 0), poster_title, font=h_font)
             tw = tb[2] - tb[0]
-            text_y = TITLE_V_PAD - (_ref_bb[1])   # 上余白 TITLE_V_PAD（ascender offset 補正）
+            # アクセントライン上端までの領域に上下中央揃え
+            content_h = layout["header_h"] - ACCENT_LINE_H
+            text_y    = (content_h - (tb[3] - tb[1])) // 2 - tb[1]
             draw.text(
                 ((CANVAS_W - tw) // 2, text_y),
                 poster_title, font=h_font, fill=theme["text1"],
