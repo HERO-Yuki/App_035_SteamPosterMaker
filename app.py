@@ -26,9 +26,11 @@ MARGIN = 10
 COLS = 2            # 列数（固定）
 MAX_GAMES = 10      # スロット最大数（見出しなし時）
 
-THUMB_W = 380       # サムネ幅（Steam header 460×215 の約83%を表示）
-SEPARATOR_W = 3     # アクセント縦区切り線幅
-TEXT_PAD = 12       # テキストエリア内側パディング
+THUMB_W = 380           # サムネ幅（Steam header 460×215 の約83%を表示）
+SEPARATOR_W = 3         # アクセント縦区切り線幅
+TEXT_PAD = 12           # テキストエリア内側パディング
+PRICE_BADGE_PAD = 8     # 価格バッジ内テキスト余白
+PRICE_BADGE_EDGE = 10   # 価格バッジとサムネ端の余白
 
 FONT_FILENAME = "NotoSansCJKjp-Bold.otf"
 FONT_URL = (
@@ -93,9 +95,9 @@ THEMES: dict[str, dict] = {
 def compute_layout(show_title: bool) -> dict:
     """
     全体見出しの有無に応じてレイアウト定数を動的に計算する。
-    - show_title=True : ヘッダー 120px + 2列×4行 = 8ゲーム（カード 930×215）
-    - show_title=False: ヘッダーなし    + 2列×5行 = 10ゲーム（カード 930×192）
-    いずれも出力は 1920×1080 px 固定。
+    - show_title=True : ヘッダー 120px + 2列×4行 = 8ゲーム（カード 950×227）
+    - show_title=False: ヘッダーなし    + 2列×5行 = 10ゲーム（カード 950×204）
+    いずれも出力は 1920×1080 px 固定。MARGIN=10 px。
     """
     header_h  = 120 if show_title else 0
     num_games = 8   if show_title else 10
@@ -291,8 +293,6 @@ def _parse_profile_input(text: str) -> tuple[str, str]:
     return "unknown", text
 
 
-
-
 @st.cache_data(ttl=300)
 def fetch_wishlist(profile_input: str) -> tuple[list[dict], str]:
     """
@@ -319,8 +319,6 @@ def fetch_wishlist(profile_input: str) -> tuple[list[dict], str]:
         ], ""
     except Exception as e:
         return [], f"ウィッシュリストの取得に失敗しました: {e}"
-
-
 
 
 def _do_import_games(candidates: list[dict], num_games: int) -> None:
@@ -615,23 +613,22 @@ def draw_card(
     canvas.paste(thumb, (x0, y0))
 
     # ─── 価格バッジ（サムネ右下・半透明オーバーレイ） ────────
-    price_font = get_font(16)
+    price_font = get_font(24)
     price_text = game["price"]
     price_bb   = draw.textbbox((0, 0), price_text, font=price_font)
     price_tw   = price_bb[2] - price_bb[0]
     price_th   = price_bb[3] - price_bb[1]
-    PAD        = 5
-    bx1 = x0 + THUMB_W - price_tw - PAD * 2   # バッジ左端
-    bx2 = x0 + THUMB_W                         # サムネ右端（exclusive）
-    by1 = y0 + L["card_h"] - price_th - PAD * 2
-    by2 = y0 + L["card_h"]                     # カード下端（exclusive）
+    bx1 = x0 + THUMB_W - price_tw - PRICE_BADGE_PAD * 2 - PRICE_BADGE_EDGE
+    bx2 = x0 + THUMB_W - PRICE_BADGE_EDGE
+    by1 = y0 + L["card_h"] - price_th - PRICE_BADGE_PAD * 2 - PRICE_BADGE_EDGE
+    by2 = y0 + L["card_h"] - PRICE_BADGE_EDGE
     badge_w = bx2 - bx1
     badge_h = by2 - by1
     # 半透明背景: クロップ → RGBA alpha_composite → RGB で貼り戻す
     badge_bg = Image.new("RGBA", (badge_w, badge_h), (0, 0, 0, 185))
     section  = canvas.crop((bx1, by1, bx2, by2)).convert("RGBA")
     canvas.paste(Image.alpha_composite(section, badge_bg).convert("RGB"), (bx1, by1))
-    draw.text((bx1 + PAD, by1 + PAD), price_text, font=price_font, fill=theme["accent"])
+    draw.text((bx1 + PRICE_BADGE_PAD, by1 + PRICE_BADGE_PAD), price_text, font=price_font, fill=theme["accent"])
 
     # ─── アクセントカラーの縦区切り線 ───────────────────────
     draw.rectangle(
@@ -695,8 +692,8 @@ def generate_poster(
         )
         if poster_title.strip():
             h_font = get_font(64)
-            tw = int(draw.textlength(poster_title, font=h_font))
             tb = draw.textbbox((0, 0), poster_title, font=h_font)
+            tw = tb[2] - tb[0]
             th = tb[3] - tb[1]
             draw.text(
                 ((CANVAS_W - tw) // 2, (layout["header_h"] - 4 - th) // 2),
@@ -741,6 +738,8 @@ def init_session() -> None:
         st.session_state.games = [None] * MAX_GAMES
     if "search_results" not in st.session_state:
         st.session_state.search_results = [[] for _ in range(MAX_GAMES)]
+    if "reorder_mode" not in st.session_state:
+        st.session_state["reorder_mode"] = False
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1015,8 +1014,8 @@ def main() -> None:
             poster_title = st.text_input(
                 "全体見出し",
                 value="2024年 神ゲー8選",
-                max_chars=40,
-                placeholder="例: 2024年 神ゲー8選",
+                max_chars=25,
+                placeholder="例: 2024年 神ゲー8選（25文字以内）",
                 key="poster_title",
                 disabled=not show_title,
             )
@@ -1051,49 +1050,52 @@ def main() -> None:
 
     # ── ゲームスロット（2列グリッド） ───────────────────────
     filled = sum(1 for g in st.session_state.games[:num_games] if g is not None)
-    col_hdr, col_cnt = st.columns([4, 1])
+
+    col_hdr, col_cnt, col_sort = st.columns([3, 1, 1])
     with col_hdr:
-        st.subheader(f"🎯 ゲームスロット")
+        st.subheader("🎯 ゲームスロット")
     with col_cnt:
         st.metric("登録数", f"{filled} / {num_games}")
+    with col_sort:
+        sort_label = "✅ 並び替え完了" if st.session_state["reorder_mode"] else "🔀 並び替え"
+        sort_type  = "primary"   if st.session_state["reorder_mode"] else "secondary"
+        if st.button(sort_label, use_container_width=True, type=sort_type):
+            st.session_state["reorder_mode"] = not st.session_state["reorder_mode"]
+            st.rerun()
 
-    # poster の 2列×N行レイアウトに対応したグリッド
-    num_rows = (num_games + 1) // 2
-    for row in range(num_rows):
-        grid_cols = st.columns(2, gap="small")
-        for col_idx, gcol in enumerate(grid_cols):
-            slot_idx = row * 2 + col_idx
-            if slot_idx < num_games:
-                with gcol:
-                    render_slot_card(slot_idx)
+    if st.session_state["reorder_mode"]:
+        # ── 並び替えモード ────────────────────────────────────
+        st.info("ドラッグして順序を変更し、完了したら **「✅ 並び替え完了」** を押してください。")
 
-    # ── 並び替え（ドラッグ＆ドロップ） ──────────────────────
-    st.divider()
-    with st.expander("🔀 スロットの並び替え（ドラッグ＆ドロップ）"):
-        st.caption("ドラッグしてスロットの順序を変更できます。グリッドと生成ポスターに反映されます。")
-
-        # 現在の順序でラベルリストを構築
         sort_labels = []
         for idx in range(num_games):
             g = st.session_state.games[idx]
-            sort_labels.append(f"🎮 {g['title']}" if g else f"⬜ SLOT {idx + 1:02d}")
+            sort_labels.append(f"🎮 {g['title']}" if g else f"⬜ 空きスロット {idx + 1:02d}")
 
         sorted_labels = sort_items(sort_labels, key="slot_sorter")
 
         if sorted_labels != sort_labels:
-            # deque で重複タイトルも正しくマッピングする
             remaining: dict[str, deque] = {}
             for idx, label in enumerate(sort_labels):
                 remaining.setdefault(label, deque()).append(idx)
 
             new_order = [remaining[label].popleft() for label in sorted_labels]
 
-            # games / search_results を新順序で並べ替え
             old_g = st.session_state.games[:num_games]
             old_r = st.session_state.search_results[:num_games]
             st.session_state.games          = [old_g[j] for j in new_order] + st.session_state.games[num_games:]
             st.session_state.search_results = [old_r[j] for j in new_order] + st.session_state.search_results[num_games:]
             st.rerun()
+    else:
+        # ── 通常グリッド表示 ─────────────────────────────────
+        num_rows = (num_games + 1) // 2
+        for row in range(num_rows):
+            grid_cols = st.columns(2, gap="small")
+            for col_idx, gcol in enumerate(grid_cols):
+                slot_idx = row * 2 + col_idx
+                if slot_idx < num_games:
+                    with gcol:
+                        render_slot_card(slot_idx)
 
     st.divider()
 
