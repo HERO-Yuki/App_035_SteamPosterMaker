@@ -14,6 +14,7 @@ from functools import lru_cache
 # ── Third Party ────────────────────────────────────────────
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from streamlit_sortables import sort_items
 
@@ -66,22 +67,22 @@ APP_NAME = "SteamPosterMaker"
 # Windows / URL で使えない文字セット
 _FILENAME_INVALID = set('\\/: *?"<>|\t\n\r')
 
-# X (Twitter) ブランドカラーのリンクボタン HTML
+# X (Twitter) ブランドカラーのリンクボタン HTML（テキスト＋ボタンを縦並び・中央揃え）
 _X_BUTTON_HTML = """
-<p style='font-size:0.8rem;color:#aaa;margin:4px 0 8px'>
-ご意見・ご要望はこちらまで（夕樹陽彩）
-</p>
-<a href="https://x.com/Yuki_HERO44" target="_blank" rel="noopener noreferrer"
-   style="display:inline-flex;align-items:center;gap:8px;
-          background:#000;color:#fff;
-          border:1px solid #333;border-radius:6px;
-          padding:6px 14px;font-size:0.85rem;font-weight:bold;
-          text-decoration:none;line-height:1.4;">
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.258 5.629 5.906-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-  </svg>
-  𝕏 &nbsp;@Yuki_HERO44
-</a>
+<div style="text-align:center;margin:8px 0 4px;">
+  <p style="font-size:0.8rem;color:#aaa;margin:0 0 8px;">ご意見・ご要望は開発者のXまで</p>
+  <a href="https://x.com/Yuki_HERO44" target="_blank" rel="noopener noreferrer"
+     style="display:inline-flex;align-items:center;gap:8px;
+            background:#000;color:#fff;
+            border:1px solid #333;border-radius:6px;
+            padding:6px 14px;font-size:0.85rem;font-weight:bold;
+            text-decoration:none;line-height:1.4;white-space:nowrap;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.258 5.629 5.906-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+    </svg>
+    𝕏 &nbsp;@Yuki_HERO44
+  </a>
+</div>
 """
 
 # グローバル CSS（スロットカード高さ揃え + 列ギャップ調整）
@@ -662,13 +663,21 @@ def draw_card(
         draw.text((tx, ty + L["player_y"]), p_wrapped, font=p_font, fill=theme["text2"])
 
     # ── レビュー文 ───────────────────────────────────────────
+    # プレイ人数が未入力の場合、その分（PLAYER_H + ROW_GAP）をレビュー欄に詰める
     review = game.get("review", "").strip()
     if review and L["review_max_h"] > 0:
+        if players:
+            rev_y     = L["review_y"]
+            rev_max_h = L["review_max_h"]
+        else:
+            freed     = PLAYER_H + ROW_GAP
+            rev_y     = L["review_y"] - freed
+            rev_max_h = L["review_max_h"] + freed
         r_font, r_wrapped = fit_text_in_box(
-            draw, review, REVIEW_FONT_PT, L["text_area_w"], L["review_max_h"],
+            draw, review, REVIEW_FONT_PT, L["text_area_w"], rev_max_h,
             min_size=REVIEW_MIN_PT,
         )
-        draw.text((tx, ty + L["review_y"]), r_wrapped, font=r_font, fill=theme["text2"])
+        draw.text((tx, ty + rev_y), r_wrapped, font=r_font, fill=theme["text2"])
 
 
 # ═══════════════════════════════════════════════════════════
@@ -737,6 +746,19 @@ def _show_age_restricted_thumb(padding: str = "16px 0") -> None:
     )
 
 
+def _price_badge_html(price_raw: str) -> str:
+    """
+    価格文字列を Steam 青ボーダーの囲み枠バッジ HTML に変換する（UI 用）。
+    XSS 対策として html.escape() でエスケープ済み。
+    """
+    return (
+        "<span style='display:inline-block;padding:2px 8px;"
+        "border:1px solid #66c0f4;border-radius:4px;"
+        "font-size:0.8rem;color:#66c0f4;line-height:1.6;"
+        f"white-space:nowrap'>{html.escape(price_raw)}</span>"
+    )
+
+
 # ═══════════════════════════════════════════════════════════
 #  セッション状態初期化
 # ═══════════════════════════════════════════════════════════
@@ -760,172 +782,271 @@ def edit_dialog(i: int) -> None:
     """
     スロット i のゲーム検索・選択・テキスト入力をポップアップで行う。
     st.rerun() を呼んだ時点でダイアログが閉じる。
+
+    フェーズ管理:
+    - 検索フェーズ: ゲーム未選択 OR ユーザーが「検索に戻る」を押した
+        → 検索フォーム + 検索結果のみ表示
+    - 編集フェーズ: ゲーム選択済み
+        → 2カラム（左:画像 / 右:入力フォーム）のみ表示
+    フェーズ切替フラグ: session_state[f"dlg_search_back_{i}"]
     """
+    game            = st.session_state.games[i]
+    in_search_phase = game is None or f"dlg_search_back_{i}" in st.session_state
+
     st.caption(f"スロット {i + 1:02d}")
-    st.divider()
 
-    # ── 検索フォーム（Enter キー or ボタンで送信）────────────
-    with st.form(key=f"dlg_form_{i}", border=False):
-        col_q, col_btn = st.columns([5, 1])
-        with col_q:
-            st.text_input(
-                "ゲームを検索",
-                key=f"dlg_q_{i}",
-                placeholder="タイトル（日英）または AppID（例: 570）を入力して Enter",
-                label_visibility="collapsed",
-            )
-        with col_btn:
-            search_clicked = st.form_submit_button(
-                "検索", icon=":material/search:", use_container_width=True,
-            )
-
-    if search_clicked:
-        q = st.session_state.get(f"dlg_q_{i}", "").strip()
-        if not q:
-            st.warning("キーワードを入力してください。")
-        elif q.isdigit():
-            # AppID 直接入力: 数字のみの入力は Steam AppID として扱う
-            app_id = int(q)
-            with st.spinner(f"AppID {app_id} のデータを取得しています..."):
-                details = get_game_details(app_id)
-            if details.get("age_restricted"):
-                st.warning(
-                    "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
-                    "ポスターには制限マークが表示されます。",
-                    icon=":material/block:",
-                )
-            elif not details.get("title"):
-                st.warning(
-                    f"AppID {app_id} のゲーム情報が取得できませんでした。"
-                    "ID が正しいか確認してください。",
-                    icon=":material/error:",
-                )
-            st.session_state.games[i] = {
-                "app_id":         app_id,
-                "title":          details.get("title") or f"AppID {app_id}",
-                "image_url":      details.get("image_url"),
-                "price":          details.get("price", "不明"),
-                "review":         "",
-                "players":        [],
-                "age_restricted": details.get("age_restricted", False),
-            }
-            st.session_state[f"dlg_review_{i}"] = ""
-            st.session_state[f"dlg_players_{i}"] = []
-            st.session_state.search_results[i] = []
-        else:
-            # 通常のテキスト検索
-            with st.spinner(f"「{q}」を検索しています..."):
-                results = search_steam(q)
-            st.session_state.search_results[i] = results
-            st.session_state.pop(f"dlg_sel_{i}", None)
-            if not results:
-                st.warning(
-                    "該当するゲームが見つかりませんでした。"
-                    "別のキーワードを試すか、しばらく待ってから再検索してください。"
-                )
-
-    # ── 検索結果 + サムネプレビュー ──────────────────────
-    results = st.session_state.search_results[i]
-    if results:
-        options_map = {
-            f"{r['name']}  (AppID: {r['app_id']})": r
-            for r in results[:10]
-        }
-        col_drop, col_prev = st.columns([3, 2])
-        with col_drop:
-            sel_key = st.selectbox(
-                "候補",
-                list(options_map.keys()),
-                key=f"dlg_sel_{i}",
-                label_visibility="collapsed",
-            )
-            confirm_clicked = st.button(
-                "このゲームに決定", key=f"dlg_confirm_{i}",
-                icon=":material/check_circle:",
-            )
-        with col_prev:
-            chosen_prev = options_map[sel_key]
-            prev_url = (
-                f"https://cdn.akamai.steamstatic.com/steam/apps"
-                f"/{chosen_prev['app_id']}/header.jpg"
-            )
-            st.image(prev_url, use_container_width=True, caption=chosen_prev["name"])
-
-        if confirm_clicked:
-            chosen = options_map[sel_key]
-            with st.spinner(f"「{chosen['name']}」のデータを取得しています..."):
-                details = get_game_details(chosen["app_id"])
-            if details.get("age_restricted"):
-                st.warning(
-                    "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
-                    "ポスターには制限マークが表示されます。",
-                    icon=":material/block:",
-                )
-            st.session_state.games[i] = {
-                "app_id":         chosen["app_id"],
-                "title":          details["title"] or chosen["name"],
-                "image_url":      details["image_url"],
-                "price":          details["price"],
-                "review":         "",
-                "players":        [],
-                "age_restricted": details.get("age_restricted", False),
-            }
-            # ウィジェット値リセット（session_state との競合防止）
-            st.session_state[f"dlg_review_{i}"] = ""
-            st.session_state[f"dlg_players_{i}"] = []
-            st.session_state.search_results[i] = []
-
-    # ── 選択済みゲームの入力フォーム（Progressive Disclosure）──
-    # 検索結果が表示中（ユーザーがゲームを選んでいる途中）は
-    # レビュー・プレイ人数フォームを非表示にし、認知負荷を下げる。
-    # 表示条件:
-    #   - games[i] が設定済み（ゲームが選択されている）
-    #   - かつ search_results[i] が空（検索候補の選択中でない）
-    game = st.session_state.games[i]
-    is_selecting = bool(st.session_state.search_results[i])
-    if game and not is_selecting:
+    # ════════════════════════════════════════════════════════
+    # 検索フェーズ
+    # ════════════════════════════════════════════════════════
+    if in_search_phase:
+        if game is not None:
+            # 選び直し中: 現在の選択をサブテキストで案内
+            st.caption(f"現在の選択: {game['title']}　／　新しいゲームを検索して選択してください")
         st.divider()
 
-        # ── ゲーム情報ヘッダー（画像プレビュー + タイトル/価格）──
-        col_img, col_meta = st.columns([5, 7])
+        # ── 検索フォーム（Enter キー or ボタンで送信）────────
+        with st.form(key=f"dlg_form_{i}", border=False):
+            col_q, col_btn = st.columns([5, 1])
+            with col_q:
+                st.text_input(
+                    "ゲームを検索",
+                    key=f"dlg_q_{i}",
+                    placeholder="タイトル（日英）または AppID（例: 570）を入力して Enter",
+                    label_visibility="collapsed",
+                    help="Steam上のタイトル（日本語・英語）で検索できます。略称ではヒットしない場合があります。",
+                )
+            with col_btn:
+                search_clicked = st.form_submit_button(
+                    "検索", icon=":material/search:", use_container_width=True,
+                )
+
+        if search_clicked:
+            q = st.session_state.get(f"dlg_q_{i}", "").strip()
+            if not q:
+                st.warning("キーワードを入力してください。")
+            elif q.isdigit():
+                # AppID 直接入力
+                app_id = int(q)
+                with st.spinner(f"AppID {app_id} のデータを取得しています..."):
+                    details = get_game_details(app_id)
+                if details.get("age_restricted"):
+                    st.warning(
+                        "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
+                        "ポスターには制限マークが表示されます。",
+                        icon=":material/block:",
+                    )
+                elif not details.get("title"):
+                    st.warning(
+                        f"AppID {app_id} のゲーム情報が取得できませんでした。"
+                        "ID が正しいか確認してください。",
+                        icon=":material/error:",
+                    )
+                st.session_state.games[i] = {
+                    "app_id":         app_id,
+                    "title":          details.get("title") or f"AppID {app_id}",
+                    "image_url":      details.get("image_url"),
+                    "price":          details.get("price", "不明"),
+                    "review":         "",
+                    "players":        [],
+                    "age_restricted": details.get("age_restricted", False),
+                }
+                st.session_state[f"dlg_review_{i}"]  = ""
+                st.session_state[f"dlg_players_{i}"] = []
+                st.session_state.search_results[i]   = []
+                st.session_state.pop(f"dlg_search_back_{i}", None)
+            else:
+                # 通常のテキスト検索
+                with st.spinner(f"「{q}」を検索しています..."):
+                    results = search_steam(q)
+                st.session_state.search_results[i] = results
+                st.session_state.pop(f"dlg_sel_{i}", None)
+                if not results:
+                    st.warning(
+                        "該当するゲームが見つかりませんでした。"
+                        "別のキーワードを試すか、しばらく待ってから再検索してください。"
+                    )
+
+        # ── 検索結果 + サムネプレビュー ──────────────────────
+        results = st.session_state.search_results[i]
+        if results:
+            options_map = {
+                f"{r['name']}  (AppID: {r['app_id']})": r
+                for r in results[:10]
+            }
+            col_drop, col_prev = st.columns([3, 2])
+            with col_drop:
+                sel_key = st.selectbox(
+                    "候補",
+                    list(options_map.keys()),
+                    key=f"dlg_sel_{i}",
+                    label_visibility="collapsed",
+                )
+                confirm_clicked = st.button(
+                    "このゲームに決定", key=f"dlg_confirm_{i}",
+                    icon=":material/check_circle:",
+                )
+            with col_prev:
+                chosen_prev = options_map[sel_key]
+                prev_url = (
+                    f"https://cdn.akamai.steamstatic.com/steam/apps"
+                    f"/{chosen_prev['app_id']}/header.jpg"
+                )
+                st.image(prev_url, use_container_width=True, caption=chosen_prev["name"])
+
+            if confirm_clicked:
+                chosen = options_map[sel_key]
+                with st.spinner(f"「{chosen['name']}」のデータを取得しています..."):
+                    details = get_game_details(chosen["app_id"])
+                if details.get("age_restricted"):
+                    st.warning(
+                        "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
+                        "ポスターには制限マークが表示されます。",
+                        icon=":material/block:",
+                    )
+                st.session_state.games[i] = {
+                    "app_id":         chosen["app_id"],
+                    "title":          details["title"] or chosen["name"],
+                    "image_url":      details["image_url"],
+                    "price":          details["price"],
+                    "review":         "",
+                    "players":        [],
+                    "age_restricted": details.get("age_restricted", False),
+                }
+                st.session_state[f"dlg_review_{i}"]  = ""
+                st.session_state[f"dlg_players_{i}"] = []
+                st.session_state.search_results[i]   = []
+                st.session_state.pop(f"dlg_search_back_{i}", None)
+
+        # ── フッターボタン ────────────────────────────────────
+        st.divider()
+        # 既存ゲームがある場合は編集フェーズへ戻れるボタンを用意
+        if game is not None:
+            col_back, col_close = st.columns([1, 1])
+            with col_back:
+                if st.button("編集に戻る", key=f"dlg_editback_{i}",
+                             icon=":material/arrow_back:", use_container_width=True):
+                    st.session_state.pop(f"dlg_search_back_{i}", None)
+                    st.rerun()
+            with col_close:
+                if st.button("キャンセル", key=f"dlg_close_{i}",
+                             icon=":material/close:", use_container_width=True):
+                    del st.session_state["editing_slot"]
+                    st.rerun()
+        else:
+            if st.button("閉じる", key=f"dlg_close_{i}",
+                         icon=":material/close:"):
+                del st.session_state["editing_slot"]
+                st.rerun()
+
+    # ════════════════════════════════════════════════════════
+    # 編集フェーズ
+    # ════════════════════════════════════════════════════════
+    else:
+        # ── 選び直しボタン ───────────────────────────────────
+        if st.button("検索に戻る", key=f"dlg_back_{i}",
+                     icon=":material/search:"):
+            st.session_state[f"dlg_search_back_{i}"] = True
+            st.session_state.search_results[i] = []
+            st.rerun()
+
+        st.divider()
+
+        # with col_form 内で定義される over_limit を buttons より前に初期化しておく
+        # （Pythonの with ブロックはスコープを作らないため実際には問題ないが、
+        #   コードの依存関係を明示するための防御的初期化）
+        over_limit = False
+
+        # ── 2カラム: 左=画像(1) / 右=タイトル・価格・入力フォーム(2) ──
+        col_img, col_form = st.columns([1, 2])
+
         with col_img:
             if game.get("age_restricted"):
-                # 年齢制限: 画像取得不可のためフォールバック表示
-                st.warning("🔞 画像を取得できません", icon=":material/block:")
+                _show_age_restricted_thumb(padding="20px 0")
             elif game.get("image_url"):
-                st.image(game["image_url"], width=250)
+                st.image(game["image_url"], use_container_width=True)
             else:
-                st.info("画像URLがありません", icon=":material/image_not_supported:")
-        with col_meta:
+                _show_age_restricted_thumb(padding="20px 0")
+
+        with col_form:
             st.markdown(f"### {game['title']}")
-            st.markdown(f"**{game['price']}**")
+            price_raw = "18+ / 詳細取得不可" if game.get("age_restricted") else game["price"]
+            st.markdown(_price_badge_html(price_raw), unsafe_allow_html=True)
 
-        st.divider()
+            st.multiselect(
+                "プレイ人数",
+                PLAYER_PRESETS,
+                key=f"dlg_players_{i}",
+                help="選択した内容がポスターのタイトル下に表示されます。未選択の場合はその分レビュー文のスペースが広がります。",
+            )
 
-        # ── 入力フォーム（フルwidth）──────────────────────────
-        # ウィジェットの戻り値を直接使用（session_state 経由より1リランぶん遅延しない）
-        review_now = st.text_area(
-            "レビュー文",
-            height=100,
-            key=f"dlg_review_{i}",
-            help="X (Twitter) 投稿を意識して 140 文字以内で。絵文字もOK。",
-        )
-        review_len = len(review_now or "")
-        over_limit = review_len > 140
-        color = "#e74c3c" if over_limit else "#aaa"
-        st.markdown(
-            f"<p style='text-align:right;font-size:0.8rem;color:{color};"
-            f"margin-top:-12px'>{review_len} / 140 文字</p>",
-            unsafe_allow_html=True,
-        )
-        if over_limit:
-            st.error("140 文字を超えています。文字数を減らしてから保存してください。")
-        st.multiselect(
-            "プレイ人数",
-            PLAYER_PRESETS,
-            key=f"dlg_players_{i}",
-        )
+            # ウィジェットの戻り値を直接使用（session_state 経由より1リランぶん遅延しない）
+            review_now = st.text_area(
+                "レビュー文",
+                height=120,
+                key=f"dlg_review_{i}",
+                help="文字数や改行が多い場合は、枠に収まるよう自動で文字サイズが縮小されます。プレイ人数を選ぶと使えるスペースが減ります。",
+            )
+            review_len = len(review_now or "")
 
+            # ── 動的文字数上限 ───────────────────────────────
+            _show_title = st.session_state.get("show_title", True)
+            _L          = compute_layout(_show_title)
+            _has_pl     = bool(st.session_state.get(f"dlg_players_{i}", game.get("players", [])))
+            _freed      = 0 if _has_pl else (PLAYER_H + ROW_GAP)
+            _base_h     = max(1, _L["review_max_h"])
+            max_chars   = max(140, int(140 * (_base_h + _freed) / _base_h))
+
+            over_limit = review_len > max_chars
+            counter_id = f"dlg-rc-{i}"
+            color_init = "#e74c3c" if over_limit else "#aaa"
+            st.markdown(
+                f"<p id='{counter_id}' style='text-align:right;font-size:0.8rem;"
+                f"color:{color_init};margin-top:-12px'>{review_len} / {max_chars} 文字</p>",
+                unsafe_allow_html=True,
+            )
+            if over_limit:
+                st.error(f"{max_chars} 文字を超えています。文字数を減らしてから保存してください。")
+
+            # ── リアルタイムカウンター（JS） ─────────────────
+            components.html(
+                f"""<script>
+(function(){{
+  var CID = '{counter_id}';
+  var MAX = {max_chars};
+  function attach() {{
+    var doc = window.parent.document;
+    var ta = null;
+    doc.querySelectorAll('[data-testid="stTextArea"] textarea').forEach(function(el) {{
+      var wrap = el.closest('[data-testid="stTextArea"]');
+      if (!wrap) return;
+      var lbl = wrap.querySelector('label');
+      if (lbl && lbl.textContent.trim().startsWith('\u30ec\u30d3\u30e5\u30fc\u6587')) ta = el;
+    }});
+    if (!ta) return false;
+    if (ta._rt) ta.removeEventListener('input', ta._rt);
+    ta._rt = function() {{
+      var n = this.value.length;
+      var c = window.parent.document.getElementById(CID);
+      if (!c) return;
+      c.textContent = n + ' / {max_chars} \u6587\u5b57';
+      c.style.color = n > MAX ? '#e74c3c' : '#aaa';
+    }};
+    ta.addEventListener('input', ta._rt);
+    return true;
+  }}
+  if (!attach()) {{
+    var tries = 0;
+    var iv = setInterval(function() {{
+      if (attach() || ++tries > 20) clearInterval(iv);
+    }}, 150);
+  }}
+}})();
+</script>""",
+                height=0,
+                scrolling=False,
+            )
+
+        # ── アクションボタン ─────────────────────────────────
         st.divider()
         col_save, col_clear, col_cancel = st.columns([3, 2, 2])
         with col_save:
@@ -935,6 +1056,7 @@ def edit_dialog(i: int) -> None:
                          disabled=over_limit):
                 st.session_state.games[i]["review"]  = st.session_state.get(f"dlg_review_{i}", "")
                 st.session_state.games[i]["players"] = st.session_state.get(f"dlg_players_{i}", [])
+                st.session_state.pop(f"dlg_search_back_{i}", None)
                 del st.session_state["editing_slot"]
                 st.rerun()
         with col_clear:
@@ -943,7 +1065,8 @@ def edit_dialog(i: int) -> None:
                          use_container_width=True):
                 st.session_state.games[i] = None
                 st.session_state.search_results[i] = []
-                for k in [f"dlg_review_{i}", f"dlg_players_{i}", f"dlg_q_{i}"]:
+                for k in [f"dlg_review_{i}", f"dlg_players_{i}", f"dlg_q_{i}",
+                           f"dlg_search_back_{i}"]:
                     st.session_state.pop(k, None)
                 del st.session_state["editing_slot"]
                 st.rerun()
@@ -951,13 +1074,9 @@ def edit_dialog(i: int) -> None:
             if st.button("キャンセル", key=f"dlg_cancel_{i}",
                          icon=":material/close:",
                          use_container_width=True):
+                st.session_state.pop(f"dlg_search_back_{i}", None)
                 del st.session_state["editing_slot"]
                 st.rerun()
-    else:
-        st.info("ゲームを検索してスロットに追加してください。")
-        if st.button("閉じる", key=f"dlg_close_{i}", icon=":material/close:"):
-            del st.session_state["editing_slot"]
-            st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -987,13 +1106,7 @@ def render_slot_card(i: int) -> None:
                     if game.get("age_restricted")
                     else game["price"]
                 )
-                # 価格を囲み枠バッジで表示
-                price_badge = (
-                    f"<span style='display:inline-block;padding:2px 8px;"
-                    f"border:1px solid #66c0f4;border-radius:4px;"
-                    f"font-size:0.8rem;color:#66c0f4;line-height:1.6;"
-                    f"white-space:nowrap'>{price_raw}</span>"
-                )
+                price_badge   = _price_badge_html(price_raw)
                 players_raw = " / ".join(game["players"]) if game.get("players") else ""
                 # プレイ人数を「プレイ人数: ○○」形式で表示
                 players_line = f"プレイ人数: {players_raw}" if players_raw else ""
@@ -1085,6 +1198,7 @@ def main() -> None:
                 placeholder="25文字以内",
                 key="poster_title",
                 label_visibility="collapsed",
+                help="ポスター上部に大きな文字で表示されるタイトルです。空欄にすると見出しエリアなしで生成されます。",
             )
         else:
             # トグルOFF時は入力欄を非表示にして説明テキストだけ表示
@@ -1206,6 +1320,10 @@ def main() -> None:
     if generate_btn:
         games_slice = st.session_state.games[:num_games]
 
+        # gen_status.update(state="complete") はストリーミングデルタとして即送信されるため、
+        # 画像レンダリング（最終フルステート）より先にブラウザへ届き、タイムラグが生じる。
+        # そのため成功時は update を呼ばず with 終了時の自動完了に委ねる。
+        # toast は session_state フラグ経由で st.image の直後に移動し同タイミングに揃える。
         with st.status("ポスターを生成しています...", expanded=True) as gen_status:
             try:
                 # Step 1: Steam CDN から各ゲームのヘッダー画像をフェッチ（キャッシュ優先）
@@ -1245,13 +1363,8 @@ def main() -> None:
                 st.session_state["last_poster_meta"] = {
                     "filename": f"{fname_body}.png",
                 }
-                gen_status.update(
-                    label="ポスター生成が完了しました", state="complete", expanded=False
-                )
-                st.toast(
-                    "ポスターが完成しました。ダウンロードボタンから保存できます。",
-                    icon=":material/check_circle:",
-                )
+                # フラグを立てて、画像表示後に toast を出す（with ブロック内では呼ばない）
+                st.session_state["_poster_complete"] = True
             except Exception as e:
                 gen_status.update(label="生成に失敗しました", state="error")
                 st.error(f"詳細: {e}")
@@ -1270,13 +1383,22 @@ def main() -> None:
             type="primary",
             use_container_width=True,
         )
+        # 画像が描画されてから toast を出す
+        if st.session_state.pop("_poster_complete", False):
+            st.toast(
+                "ポスターが完成しました。ダウンロードボタンから保存できます。",
+                icon=":material/check_circle:",
+            )
 
     # ── 免責事項 ────────────────────────────────────────────
     st.divider()
-    st.caption(
-        "**本アプリは非公式のファンメイドツールです。**"
-        "　Steam および Valve Corporation とは直接的な関わりはありません。"
+    st.markdown(
+        "<p style='text-align:center;font-size:0.8rem;color:#aaa;line-height:1.8;margin:0'>"
+        "<strong>本アプリは非公式のファンメイドツールです。</strong><br>"
+        "Steam および Valve Corporation とは直接的な関わりはありません。<br>"
         "Steam の商標・ロゴは Valve Corporation の財産です。"
+        "</p>",
+        unsafe_allow_html=True,
     )
     st.markdown(_X_BUTTON_HTML, unsafe_allow_html=True)
     with st.expander("利用規約・免責事項"):
@@ -1300,7 +1422,7 @@ def main() -> None:
 **動作保証について**
 * Steam Web API の仕様変更やサーバー状況により、一時的にゲーム情報の取得に失敗する場合があります。
 * 本アプリの動作や出力結果について、開発者は一切の責任を負いません。また、予告なく機能の変更や公開停止を行う場合があります。
-* 本アプリは [Streamlit](https://streamlit.io) を使用して構築されています。Streamlit Cloud の[利用規約](https://streamlit.io/terms-of-use)も併せて適用されます。
+* 本アプリは <a href="https://streamlit.io" target="_blank" style="color:#a8c8e8;text-decoration:underline">Streamlit</a> を使用して構築されています。Streamlit Cloud の<a href="https://streamlit.io/terms-of-use" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>も併せて適用されます。
             """
         )
 

@@ -115,7 +115,10 @@ App_035_SteamPosterMaker/
 - **検索結果**: `st.session_state.search_results[i]`
 - ~~`search_queries`~~: UI リファクタ後に未参照となったため削除済み
 - **並べ替えモード**: `st.session_state["reorder_mode"]`（bool）— `init_session()` で初期化
-- **ダイアログ**: `st.session_state["editing_slot"] = i` でポップアップを開く。ダイアログ内ウィジェットは `dlg_review_{i}`, `dlg_players_{i}`, `dlg_q_{i}` キーで管理
+- **ダイアログ**:
+    - `st.session_state["editing_slot"] = i` でポップアップを開く
+    - ダイアログ内ウィジェット: `dlg_review_{i}`, `dlg_players_{i}`, `dlg_q_{i}` キーで管理
+    - フェーズ切替フラグ: `dlg_search_back_{i}` — セットされていると検索フェーズに戻る。ダイアログを閉じる際（保存・クリア・キャンセル）に必ず削除する
 - **ポスター永続化**: 生成した PNG バイト列を `last_poster_bytes` / `last_poster_meta` に保存し、設定変更後のリラン後も表示を維持
 
 ### API キャッシュ
@@ -171,6 +174,11 @@ App_035_SteamPosterMaker/
 - [x] スロットカード: 横並び高さ揃え CSS（flex stretch + height:100% 伝播）
 - [x] 免責事項: 5セクション構成に拡充・X ボタン化（ブランドカラー）
 - [x] グローバル CSS を `_GLOBAL_CSS` 定数に集約・X ボタン HTML を `_X_BUTTON_HTML` 定数に抽出
+- [x] ダイアログ UI 2フェーズ化（検索フェーズ / 編集フェーズ）完全分離
+- [x] 編集フェーズを2カラムレイアウト（左=ゲーム画像 / 右=入力フォーム）に刷新
+- [x] 「検索に戻る」「編集に戻る」ボタンでフェーズをシームレスに切り替え
+- [x] `_price_badge_html(price_raw)` ヘルパー抽出（バッジ HTML の重複排除・XSS 対策集約）
+- [x] `dlg_search_back_{i}` フラグ残留バグを修正（保存・キャンセル時のクリーンアップ）
 
 ### 未実装・将来課題 (Todo)
 - [ ] フォント取得の代替 URL（GitHub が落ちている場合のフォールバック）
@@ -187,19 +195,45 @@ App_035_SteamPosterMaker/
 - 新しいライブラリを追加する際はユーザーに確認
 
 ### AI への指示
-    - `draw_card` と `generate_poster` の座標計算は `compute_layout()` が返す `dict` のキー経由で行うこと（ハードコード禁止）
+- `draw_card` と `generate_poster` の座標計算は `compute_layout()` が返す `dict` のキー経由で行うこと（ハードコード禁止）
 - ダイアログ内ウィジェットには `dlg_` プレフィックスを付けること
 - `@st.cache_data` 内で `st.session_state` を書き換えないこと
-- 年齢制限ゲームの UI 表示: スロットカードでは `_show_age_restricted_thumb()`、ダイアログ内では `st.warning()` を使うこと
+- 年齢制限ゲームの UI 表示: スロットカード・ダイアログともに `_show_age_restricted_thumb()` を使うこと
 - `make_age_restricted_image` は `@lru_cache` 済みなので何度呼んでも安全
 - `ensure_font()` は `main()` の冒頭で一度だけ呼ぶこと
 - ダイアログを開く/閉じる操作は `st.session_state["editing_slot"]` の設定/削除＋`st.rerun()` で行うこと
 - グローバル CSS は `_GLOBAL_CSS` 定数、X ボタン HTML は `_X_BUTTON_HTML` 定数を使うこと（インライン HTML 直書き禁止）
 - HTML エスケープは `html.escape()` を使うこと（手動 `.replace()` 禁止）
+- 価格バッジ HTML は `_price_badge_html(price_raw)` を使うこと（インライン HTML 直書き禁止）
+- ダイアログのフェーズ切替フラグ `dlg_search_back_{i}` は、ダイアログを完全に閉じる際（保存・クリア・キャンセル）に必ず `pop` してクリアすること
 
 ---
 
 ## 7. 更新履歴 (Changelog)
+
+### 2026-04-10 v8（ダイアログ UI 大幅刷新）
+
+**ダイアログ 2フェーズ化**
+- `edit_dialog` を「検索フェーズ」と「編集フェーズ」に完全分離
+    - 検索フェーズ: 検索フォーム + 検索結果リストのみ表示
+    - 編集フェーズ: 検索フォーム/リストは非表示。選択ゲームの画像＋入力フォームのみ
+- フェーズ切替フラグ: `session_state[f"dlg_search_back_{i}"]` で管理
+- 編集フェーズ上部に「検索に戻る」ボタン（`:material/search:`）を配置
+- 検索フェーズでゲーム選択済みの場合は「編集に戻る」ボタンも表示
+
+**編集フェーズの 2カラムレイアウト**
+- `st.columns([1, 2])` で左=ゲーム画像（比率1）/ 右=タイトル・価格バッジ・プレイ人数・レビュー文（比率2）のダッシュボード風レイアウトを実現
+- 検索候補画像と選択ゲーム画像が縦に2枚重なっていた問題を解消
+
+**バグ修正**
+- ダイアログを「保存」「キャンセル」で閉じた際に `dlg_search_back_{i}` フラグが残留し、次回開封時に誤って検索フェーズになるバグを修正
+- 「クリア」ボタンでも同フラグを明示的に削除するよう統一
+
+**コードリファクタリング（v8）**
+- `_price_badge_html(price_raw: str) -> str` ヘルパーを抽出
+    - `render_slot_card` と `edit_dialog` の両方で使用していた同一の囲み枠バッジ HTML を統一
+    - `html.escape()` による XSS 対策を一元化
+- 編集フェーズ冒頭で `over_limit = False` を防御的に初期化（依存関係を明示）
 
 ### 2026-04-10 v7（ビジュアル・UX 改善バッチ）
 
