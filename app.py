@@ -7,6 +7,7 @@ Steamゲーム布教まとめ画像（最大10本紹介）自動生成 Webアプ
 import html
 import io
 import os
+import random
 import datetime
 from collections import deque
 from functools import lru_cache
@@ -63,6 +64,98 @@ FONT_URLS = [
     "https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
 ]
 APP_NAME = "SteamPosterMaker"
+
+# ── 開発者モード ──────────────────────────────────────────
+# False に変更するだけでデバッグ用 UI（テストデータ入力ボタン等）が完全に非表示になる
+DEV_MODE: bool = True
+
+# テスト入力用サンプルゲームデータ（DEV_MODE=True のときのみ使用）
+_DEV_SAMPLE_GAMES: list[dict] = [
+    {
+        "app_id": 1245620, "title": "ELDEN RING",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg",
+        "price": "¥8,778", "age_restricted": False,
+        "players": ["ソロ", "オンライン対戦"],
+        "review": "オープンワールドと死にゲーの融合。探索の自由度と達成感が圧倒的。ボス撃破時の感動はひとしお。",
+    },
+    {
+        "app_id": 1091500, "title": "Cyberpunk 2077",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/1091500/header.jpg",
+        "price": "¥8,778", "age_restricted": False,
+        "players": ["ソロ"],
+        "review": "圧倒的なビジュアルとストーリー。ナイトシティの世界に完全に没入できる。大型アプデで別ゲーに。",
+    },
+    {
+        "app_id": 1145360, "title": "Hades",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/1145360/header.jpg",
+        "price": "¥2,050", "age_restricted": False,
+        "players": ["ソロ"],
+        "review": "死んでも楽しいローグライク。会話で物語が進む構造が斬新。何周でもやりたくなる中毒性。",
+    },
+    {
+        "app_id": 367520, "title": "Hollow Knight",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/367520/header.jpg",
+        "price": "¥580", "age_restricted": False,
+        "players": ["ソロ"],
+        "review": "コスパ最強の2Dアクション。広大なマップ、美麗なドット、硬派な難易度のすべてが最高水準。",
+    },
+    {
+        "app_id": 413150, "title": "Stardew Valley",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/413150/header.jpg",
+        "price": "¥980", "age_restricted": False,
+        "players": ["ソロ", "オンライン協力"],
+        "review": "農場経営×RPG。ゆっくり自分のペースで遊べる癒し系。協力プレイで友人と農業ライフも楽しい。",
+    },
+    {
+        "app_id": 620, "title": "Portal 2",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/620/header.jpg",
+        "price": "¥1,480", "age_restricted": False,
+        "players": ["ソロ", "ローカル協力"],
+        "review": "発想力を試されるパズルゲームの金字塔。ストーリーも秀逸。友人との協力プレイが特にオススメ。",
+    },
+    {
+        "app_id": 292030, "title": "The Witcher 3: Wild Hunt",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/292030/header.jpg",
+        "price": "¥4,980", "age_restricted": False,
+        "players": ["ソロ"],
+        "review": "オープンワールドRPGの最高傑作のひとつ。クエストの一つひとつが丁寧に作り込まれている。",
+    },
+    {
+        "app_id": 105600, "title": "Terraria",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/105600/header.jpg",
+        "price": "¥980", "age_restricted": False,
+        "players": ["ソロ", "オンライン協力"],
+        "review": "2Dサンドボックスの傑作。掘って作って戦うループが止まらない。マルチプレイで友人と遊ぶと倍楽しい。",
+    },
+    {
+        "app_id": 548430, "title": "Deep Rock Galactic",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/548430/header.jpg",
+        "price": "¥2,480", "age_restricted": False,
+        "players": ["ソロ", "オンライン協力"],
+        "review": "最高のコープシューター。チームワークが問われる設計が秀逸。Rock and Stone！",
+    },
+    {
+        "app_id": 582010, "title": "Monster Hunter: World",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/582010/header.jpg",
+        "price": "¥4,180", "age_restricted": False,
+        "players": ["ソロ", "オンライン協力"],
+        "review": "シリーズ最高傑作の呼び声高い一作。アクションの奥深さはもちろん、世界の造り込みも抜群。",
+    },
+    {
+        "app_id": 504230, "title": "Celeste",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/504230/header.jpg",
+        "price": "¥1,980", "age_restricted": False,
+        "players": ["ソロ"],
+        "review": "難しいが理不尽ではないプラットフォーマー。克服するたびに成長を感じられる。BGMも最高。",
+    },
+    {
+        "app_id": 2379780, "title": "Balatro",
+        "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/2379780/header.jpg",
+        "price": "¥2,600", "age_restricted": False,
+        "players": ["ソロ"],
+        "review": "ポーカー×ローグライクの唯一無二の組み合わせ。シナジーを見つける快感が止まらない中毒作。",
+    },
+]
 
 # Windows / URL で使えない文字セット
 _FILENAME_INVALID = set('\\/: *?"<>|\t\n\r')
@@ -1162,7 +1255,31 @@ def main() -> None:
 
     st.title("SteamPosterMaker")
 
+    # ── レイアウト・進捗をサイドバーより先に計算 ─────────────────
+    # show_title は session_state から先読みし、トグルウィジェットが
+    # 同一リラン内で変更することはないため、ここで確定した値を使い回す。
+    show_title        = st.session_state.get("show_title", True)
+    layout            = compute_layout(show_title)
+    num_games         = layout["num_games"]
+    filled            = sum(1 for g in st.session_state.games[:num_games] if g is not None)
+    already_generated = "last_poster_bytes" in st.session_state
+
     with st.sidebar:
+        # ── 進捗バー ─────────────────────────────────────────────
+        progress_val = filled / num_games if num_games > 0 else 0.0
+        st.progress(progress_val, text=f"進捗: {filled} / {num_games} 本")
+
+        # ── サイドバー常駐 CTA ────────────────────────────────────
+        sidebar_generate_btn = st.button(
+            "再生成" if already_generated else "ポスターを生成",
+            key="sidebar_generate_btn",
+            icon=":material/refresh:" if already_generated else ":material/palette:",
+            type="primary",
+            use_container_width=True,
+            disabled=(filled == 0),
+        )
+
+        st.divider()
         st.markdown("### 開発者をフォロー")
         st.link_button(
             "𝕏  @Yuki_HERO44",
@@ -1170,17 +1287,39 @@ def main() -> None:
             use_container_width=True,
         )
 
+        # ── 開発者ツール（DEV_MODE=False で非表示）────────────────
+        if DEV_MODE:
+            st.divider()
+            st.caption("開発者ツール")
+            if st.button(
+                "テストデータを入力",
+                key="dev_fill_btn",
+                icon=":material/science:",
+                use_container_width=True,
+            ):
+                picks = random.sample(
+                    _DEV_SAMPLE_GAMES,
+                    min(num_games, len(_DEV_SAMPLE_GAMES)),
+                )
+                for idx, game_data in enumerate(picks):
+                    st.session_state.games[idx] = {
+                        k: (list(v) if isinstance(v, list) else v)
+                        for k, v in game_data.items()
+                    }
+                    st.session_state[f"dlg_review_{idx}"]  = game_data["review"]
+                    st.session_state[f"dlg_players_{idx}"] = list(game_data["players"])
+                    # ダイアログフェーズフラグを確実にリセット
+                    st.session_state.pop(f"dlg_search_back_{idx}", None)
+                for idx in range(len(picks), MAX_GAMES):
+                    st.session_state.games[idx] = None
+                st.rerun()
+
     st.divider()
 
     # ── 見出し設定（常時表示）+ 表示設定ポップオーバー ────────
-    # show_title をトグルより先にセッション状態から読み取り、compute_layout を
-    # 1 度だけ呼ぶ。その後 3 カラムの with ブロックを連続して展開する。
-    # ※ with ブロックの間に非 UI コードを挟むと Streamlit の列レンダリングが
-    #   分断され、ダイアログ内の再描画タイミングが乱れるため。
-    show_title = st.session_state.get("show_title", True)
-    layout     = compute_layout(show_title)
-    num_games  = layout["num_games"]
-
+    # show_title は上で session_state から先読み済み。
+    # 3 カラムの with ブロックは連続して展開する（間に非 UI コードを挟むと
+    # Streamlit の列レンダリングが分断され再描画タイミングが乱れるため）。
     col_tog, col_ttl, col_pop = st.columns([1, 3, 1])
     with col_tog:
         show_title = st.toggle(
@@ -1247,8 +1386,7 @@ def main() -> None:
     st.divider()
 
     # ── ゲームスロット（2列グリッド） ───────────────────────
-    filled = sum(1 for g in st.session_state.games[:num_games] if g is not None)
-
+    # filled / already_generated はページ冒頭で先行計算済み
     col_hdr, col_cnt, col_sort = st.columns([3, 1, 1])
     with col_hdr:
         st.subheader("ゲームスロット")
@@ -1308,7 +1446,6 @@ def main() -> None:
             f"未入力の枠 {num_games - filled} 個は「空欄カード」として出力されます。",
             icon=":material/info:",
         )
-    already_generated = "last_poster_bytes" in st.session_state
     generate_btn = st.button(
         "再生成" if already_generated else "ポスターを生成",
         icon=":material/refresh:" if already_generated else ":material/palette:",
@@ -1317,7 +1454,7 @@ def main() -> None:
         disabled=(filled == 0),
     )
 
-    if generate_btn:
+    if generate_btn or sidebar_generate_btn:
         games_slice = st.session_state.games[:num_games]
 
         # gen_status.update(state="complete") はストリーミングデルタとして即送信されるため、

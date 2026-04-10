@@ -49,7 +49,7 @@ App_035_SteamPosterMaker/
 │   ├── フォント管理 (ensure_font, get_font with lru_cache)
 │   ├── Steam API (@st.cache_data: search_steam, get_game_details)
 │   ├── 画像ユーティリティ (_fetch_raw_image, load_pil_image, make_age_restricted_image)
-│   ├── UI ヘルパー (_show_age_restricted_thumb)
+│   ├── UI ヘルパー (_show_age_restricted_thumb, _price_badge_html)
 │   ├── テキスト描画 (wrap_text_pixels, fit_text_in_box)
 │   ├── カード描画 (draw_card)
 │   ├── ポスター生成 (generate_poster)
@@ -179,6 +179,9 @@ App_035_SteamPosterMaker/
 - [x] 「検索に戻る」「編集に戻る」ボタンでフェーズをシームレスに切り替え
 - [x] `_price_badge_html(price_raw)` ヘルパー抽出（バッジ HTML の重複排除・XSS 対策集約）
 - [x] `dlg_search_back_{i}` フラグ残留バグを修正（保存・キャンセル時のクリーンアップ）
+- [x] サイドバー: 進捗バー（`st.progress`）でゲーム登録数を可視化
+- [x] サイドバー: 「ポスターを生成」CTA ボタンを常駐化（スクロールなしで生成可能）
+- [x] `DEV_MODE` フラグ + `_DEV_SAMPLE_GAMES` によるテストデータ一括入力機能
 
 ### 未実装・将来課題 (Todo)
 - [ ] フォント取得の代替 URL（GitHub が落ちている場合のフォールバック）
@@ -206,10 +209,38 @@ App_035_SteamPosterMaker/
 - HTML エスケープは `html.escape()` を使うこと（手動 `.replace()` 禁止）
 - 価格バッジ HTML は `_price_badge_html(price_raw)` を使うこと（インライン HTML 直書き禁止）
 - ダイアログのフェーズ切替フラグ `dlg_search_back_{i}` は、ダイアログを完全に閉じる際（保存・クリア・キャンセル）に必ず `pop` してクリアすること
+- テストデータを入力する処理でも `dlg_search_back_{i}` を `pop` してクリアすること
+- `DEV_MODE = False` にすれば開発者ツール UI は完全に非表示になる。本番リリース前にここを変更すること
+- `_DEV_SAMPLE_GAMES` は API を呼ばずに直接 session_state へ書き込む。本番のゲームデータと同じ dict 構造（app_id, title, image_url, price, age_restricted, players, review）を維持すること
 
 ---
 
 ## 7. 更新履歴 (Changelog)
+
+### 2026-04-10 v9（サイドバー強化・開発者モード）
+
+**サイドバー: 進捗の可視化**
+- `st.progress(filled / num_games, text=f"進捗: {filled} / {num_games} 本")` をサイドバー最上部に追加
+- ゲーム登録数をスクロールなしで常に確認できる
+
+**サイドバー: CTA ボタン常駐化**
+- 「ポスターを生成」ボタンをサイドバーにも配置（`key="sidebar_generate_btn"`）
+- メイン側ボタンと `generate_btn or sidebar_generate_btn` で同じ生成ロジックを共有
+- `filled == 0` のとき `disabled=True`、生成済みは「再生成」に文言変更
+
+**先行計算のリファクタリング**
+- `show_title / layout / num_games / filled / already_generated` をサイドバーブロックより前で一括計算
+- `main()` 内の重複変数（`filled`, `already_generated`）を削除し、先行計算した値を参照
+
+**開発者モード（`DEV_MODE` フラグ）**
+- `DEV_MODE: bool = True` を定数セクションに追加（`False` に変えるだけで dev UI が非表示）
+- `_DEV_SAMPLE_GAMES`（12タイトル）をモジュール定数として定義
+- サイドバー末尾に「テストデータを入力」ボタンを配置（`DEV_MODE=True` 時のみ表示）
+    - `random.sample` で `num_games` 本分をランダムに選択し全スロットへ一括入力
+    - `dlg_review_{idx}` / `dlg_players_{idx}` / `dlg_search_back_{idx}` も同時にリセット
+
+**バグ修正**
+- テストデータ入力時に `dlg_search_back_{idx}` フラグが残留し、次回ダイアログ開封時に検索フェーズになるバグを修正
 
 ### 2026-04-10 v8（ダイアログ UI 大幅刷新）
 
