@@ -160,37 +160,9 @@ _DEV_SAMPLE_GAMES: list[dict] = [
 # Windows / URL で使えない文字セット
 _FILENAME_INVALID = set('\\/: *?"<>|\t\n\r')
 
-# X (Twitter) ブランドカラーのリンクボタン HTML（テキスト＋ボタンを縦並び・中央揃え）
+# X (Twitter) ブランドカラーのリンクボタン HTML（.x-btn CSS は _GLOBAL_CSS で定義）
 _X_BUTTON_HTML = """
-<style>
-  .x-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: #000;
-    color: #fff !important;
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 0.85rem;
-    font-weight: bold;
-    text-decoration: none !important;
-    line-height: 1.4;
-    white-space: nowrap;
-    transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
-  }
-  .x-btn:visited, .x-btn:active, .x-btn:focus {
-    color: #fff !important;
-    text-decoration: none !important;
-  }
-  .x-btn:hover {
-    background: #1a1a1a;
-    border-color: #666;
-    opacity: 0.85;
-    color: #fff !important;
-  }
-</style>
-<div style="text-align:center;margin:8px 0 4px;">
+<div style="text-align:center;margin:8px 0 20px;">
   <p style="font-size:0.8rem;color:#aaa;margin:0 0 8px;">ご意見・ご要望は開発者のXまで</p>
   <a href="https://x.com/Yuki_HERO44" target="_blank" rel="noopener noreferrer" class="x-btn">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white">
@@ -230,6 +202,34 @@ section[data-testid="stMain"] { margin-left: 0 !important; }
 /* ページ下部にバーの高さ分の余白を確保（コンテンツが隠れないように） */
 section[data-testid="stMain"] > div > div { padding-bottom: 90px !important; }
 
+
+/* ── X ブランドリンクボタン ── */
+.x-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #000;
+  color: #fff !important;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-decoration: none !important;
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+.x-btn:visited, .x-btn:active, .x-btn:focus {
+  color: #fff !important;
+  text-decoration: none !important;
+}
+.x-btn:hover {
+  background: #1a1a1a;
+  border-color: #666;
+  opacity: 0.85;
+  color: #fff !important;
+}
 
 /* ── スロットカード行: 高さを同一に揃える ── */
 /* ボーダーコンテナを含む横並びブロックのみ対象にし、他の行に影響させない */
@@ -1308,7 +1308,6 @@ def main() -> None:
     st.set_page_config(
         page_title="SteamPosterMaker",
         layout="wide",
-        initial_sidebar_state="collapsed",
     )
 
     init_session()
@@ -1388,7 +1387,6 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    sidebar_generate_btn = False  # サイドバー廃止のため常に False
 
     # ── 開発者ツール（DEV_MODE=True のときのみ表示）────────────────
     if DEV_MODE:
@@ -1557,14 +1555,14 @@ def main() -> None:
             icon=":material/info:",
         )
     generate_btn = st.button(
-        "再生成" if already_generated else "ポスターを生成",
+        "再生成する" if already_generated else "ポスターを生成する",
         icon=":material/refresh:" if already_generated else ":material/palette:",
         type="primary",
         use_container_width=True,
         disabled=(filled == 0),
     )
 
-    if generate_btn or sidebar_generate_btn or _sticky_triggered:
+    if generate_btn or _sticky_triggered:
         games_slice = st.session_state.games[:num_games]
 
         # 前回の巨大画像バイト列を事前に解放し、新旧データのメモリ二重保持を防ぐ
