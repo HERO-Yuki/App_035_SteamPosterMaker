@@ -28,18 +28,16 @@ from streamlit_sortables import sort_items
 CANVAS_W, CANVAS_H = 1920, 1080
 MARGIN     = 4      # カード間マージン（px）
 COLS       = 2      # グリッド列数（固定）
-MAX_GAMES  = 10     # スロット最大数（全体見出しなし時）
-HEADER_H   = 96     # 全体見出しエリアの高さ（px）
+MAX_GAMES  = 10     # スロット最大数（常に10本固定）
+HEADER_H   = 88     # 全体見出しエリアの高さ（px）
 FOOTER_H   = 36     # フッター帯の高さ（px）— ウォーターマーク領域
 
 # ── カード構造 ───────────────────────────────────────────
 THUMB_W         = 380   # サムネ幅（px）
 SEPARATOR_W     = 3     # アクセント縦区切り線幅（px）
 TEXT_PAD        = 12    # テキストエリア内側パディング（px）
-PLAYER_H        = 26    # プレイ人数行の高さ（px）
-ROW_GAP         = 6     # テキスト行間（px）
-TITLE_MAX_H_ON  = 52    # 全体見出しあり時のタイトル最大高さ（px）
-TITLE_MAX_H_OFF = 42    # 全体見出しなし時のタイトル最大高さ（px）
+ROW_GAP         = 6     # タイトル〜レビュー間の行間（px）
+TITLE_MAX_H_RATIO = 0.22  # ゲームタイトル最大高さ ÷ カード高さの比率（8本/10本・見出しあり/なしで可変）
 
 # ── 価格バッジ ───────────────────────────────────────────
 PRICE_BADGE_PAD  = 8          # バッジ内テキスト余白（px）
@@ -47,11 +45,10 @@ PRICE_BADGE_EDGE = 10         # バッジとサムネ端の余白（px）
 SALE_GREEN       = (164, 208, 7)  # #A4D007 — セール割引率テキスト色（Steam グリーン）
 
 # ── タイポグラフィ（ポスター画像上のフォントサイズ / pt）──
-HEADER_FONT_PT   = 64   # 全体見出し
+HEADER_FONT_PT   = 52   # 全体見出し
+TITLE_BOTTOM_PAD = 10   # 全体見出しテキスト下端〜アクセントライン間の余白（px）
 TITLE_FONT_PT    = 28   # ゲームタイトル（初期）
 TITLE_MIN_PT     = 16   # ゲームタイトル（最小）
-PLAYER_FONT_PT   = 19   # プレイ人数（初期）
-PLAYER_MIN_PT    = 13   # プレイ人数（最小）
 REVIEW_FONT_PT   = 19   # レビュー文（初期）
 REVIEW_MIN_PT    = 11   # レビュー文（最小）
 PRICE_FONT_PT    = 24   # 価格バッジ
@@ -77,84 +74,72 @@ _DEV_SAMPLE_GAMES: list[dict] = [
         "app_id": 1245620, "title": "ELDEN RING",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg",
         "price": "¥8,778", "age_restricted": False,
-        "players": ["ソロ", "オンライン対戦"],
         "review": "オープンワールドと死にゲーの融合。探索の自由度と達成感が圧倒的。ボス撃破時の感動はひとしお。",
     },
     {
         "app_id": 1091500, "title": "Cyberpunk 2077",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/1091500/header.jpg",
         "price": "¥8,778", "age_restricted": False,
-        "players": ["ソロ"],
         "review": "圧倒的なビジュアルとストーリー。ナイトシティの世界に完全に没入できる。大型アプデで別ゲーに。",
     },
     {
         "app_id": 1145360, "title": "Hades",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/1145360/header.jpg",
         "price": "¥2,050", "age_restricted": False,
-        "players": ["ソロ"],
         "review": "死んでも楽しいローグライク。会話で物語が進む構造が斬新。何周でもやりたくなる中毒性。",
     },
     {
         "app_id": 367520, "title": "Hollow Knight",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/367520/header.jpg",
         "price": "¥580", "age_restricted": False,
-        "players": ["ソロ"],
         "review": "コスパ最強の2Dアクション。広大なマップ、美麗なドット、硬派な難易度のすべてが最高水準。",
     },
     {
         "app_id": 413150, "title": "Stardew Valley",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/413150/header.jpg",
         "price": "¥980", "age_restricted": False,
-        "players": ["ソロ", "オンライン協力"],
         "review": "農場経営×RPG。ゆっくり自分のペースで遊べる癒し系。協力プレイで友人と農業ライフも楽しい。",
     },
     {
         "app_id": 620, "title": "Portal 2",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/620/header.jpg",
         "price": "¥1,480", "age_restricted": False,
-        "players": ["ソロ", "ローカル協力"],
         "review": "発想力を試されるパズルゲームの金字塔。ストーリーも秀逸。友人との協力プレイが特にオススメ。",
     },
     {
         "app_id": 292030, "title": "The Witcher 3: Wild Hunt",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/292030/header.jpg",
         "price": "¥4,980", "age_restricted": False,
-        "players": ["ソロ"],
         "review": "オープンワールドRPGの最高傑作のひとつ。クエストの一つひとつが丁寧に作り込まれている。",
     },
     {
         "app_id": 105600, "title": "Terraria",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/105600/header.jpg",
         "price": "¥980", "age_restricted": False,
-        "players": ["ソロ", "オンライン協力"],
         "review": "2Dサンドボックスの傑作。掘って作って戦うループが止まらない。マルチプレイで友人と遊ぶと倍楽しい。",
     },
     {
         "app_id": 548430, "title": "Deep Rock Galactic",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/548430/header.jpg",
         "price": "¥2,480", "age_restricted": False,
-        "players": ["ソロ", "オンライン協力"],
         "review": "最高のコープシューター。チームワークが問われる設計が秀逸。Rock and Stone！",
     },
     {
         "app_id": 582010, "title": "Monster Hunter: World",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/582010/header.jpg",
         "price": "¥4,180", "age_restricted": False,
-        "players": ["ソロ", "オンライン協力"],
         "review": "シリーズ最高傑作の呼び声高い一作。アクションの奥深さはもちろん、世界の造り込みも抜群。",
     },
     {
         "app_id": 504230, "title": "Celeste",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/504230/header.jpg",
         "price": "¥1,980", "age_restricted": False,
-        "players": ["ソロ"],
         "review": "難しいが理不尽ではないプラットフォーマー。克服するたびに成長を感じられる。BGMも最高。",
     },
     {
         "app_id": 2379780, "title": "Balatro",
         "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/2379780/header.jpg",
         "price": "¥2,600", "age_restricted": False,
-        "players": ["ソロ"],
         "review": "ポーカー×ローグライクの唯一無二の組み合わせ。シナジーを見つける快感が止まらない中毒作。",
     },
 ]
@@ -170,21 +155,26 @@ _X_BUTTON_HTML = """
     align-items: center;
     gap: 8px;
     background: #000;
-    color: #fff;
+    color: #fff !important;
     border: 1px solid #333;
     border-radius: 6px;
     padding: 6px 14px;
     font-size: 0.85rem;
     font-weight: bold;
-    text-decoration: none;
+    text-decoration: none !important;
     line-height: 1.4;
     white-space: nowrap;
     transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+  }
+  .x-btn:visited, .x-btn:active, .x-btn:focus {
+    color: #fff !important;
+    text-decoration: none !important;
   }
   .x-btn:hover {
     background: #1a1a1a;
     border-color: #666;
     opacity: 0.85;
+    color: #fff !important;
   }
 </style>
 <div style="text-align:center;margin:8px 0 4px;">
@@ -193,7 +183,7 @@ _X_BUTTON_HTML = """
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white">
       <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.258 5.629 5.906-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
     </svg>
-    𝕏 &nbsp;@Yuki_HERO44
+    @Yuki_HERO44
   </a>
 </div>
 """
@@ -248,11 +238,6 @@ def _safe_filename(title: str) -> str:
     return safe[:20] or "poster"
 
 
-PLAYER_PRESETS = [
-    "ソロ", "ローカル協力", "ローカル対戦",
-    "オンライン協力", "オンライン対戦", "MMO", "その他",
-]
-
 THEMES: dict[str, dict] = {
     "Steam Classic": {
         "bg":      (27,  40,  56),
@@ -301,16 +286,19 @@ THEMES: dict[str, dict] = {
 #  動的レイアウト計算
 # ═══════════════════════════════════════════════════════════
 
-def compute_layout(show_title: bool) -> dict:
+def compute_layout(show_title: bool, num_games: int = MAX_GAMES) -> dict:
     """
-    全体見出しの有無に応じてレイアウト定数を動的に計算する。
-    数値はすべてモジュール定数（MARGIN / HEADER_H / FOOTER_H / PLAYER_H など）から取得。
-    - show_title=True : HEADER_H(96)px + 2列×4行 = 8ゲーム  カード 954×232 px
-    - show_title=False: ヘッダーなし + 2列×5行  = 10ゲーム  カード 954×204 px
-    いずれも出力は 1920×1080 px 固定。下端は FOOTER_H(36)px のフッター帯で確保。
+    全体見出しの有無・ゲーム本数に応じてレイアウト定数を動的に計算する。
+    数値はすべてモジュール定数（MARGIN / HEADER_H / FOOTER_H など）から取得。
+    出力は常に 1920×1080 px 固定。下端は FOOTER_H(36)px のフッター帯で確保。
+
+    カード高さの目安（HEADER_H=88, FOOTER_H=36, MARGIN=4）:
+      num_games=8,  show_title=True  → 234 px
+      num_games=8,  show_title=False → 256 px
+      num_games=10, show_title=True  → 186 px
+      num_games=10, show_title=False → 204 px
     """
     header_h  = HEADER_H if show_title else 0
-    num_games = 8        if show_title else MAX_GAMES
     rows      = num_games // COLS
     grid_h    = CANVAS_H - header_h - FOOTER_H
 
@@ -320,11 +308,11 @@ def compute_layout(show_title: bool) -> dict:
     text_x_offset = THUMB_W + SEPARATOR_W + TEXT_PAD
     text_area_w   = card_w - text_x_offset - TEXT_PAD
 
-    title_max_h  = TITLE_MAX_H_ON if show_title else TITLE_MAX_H_OFF
+    # タイトル最大高さはカード高さに比例させる（8本/10本・見出しあり/なしで自動調整）
+    title_max_h  = max(36, int(card_h * TITLE_MAX_H_RATIO))
     title_y      = TEXT_PAD
 
-    player_y     = title_y + title_max_h + ROW_GAP
-    review_y     = player_y + PLAYER_H + ROW_GAP
+    review_y     = title_y + title_max_h + ROW_GAP
     review_max_h = card_h - review_y - TEXT_PAD
 
     return {
@@ -337,7 +325,6 @@ def compute_layout(show_title: bool) -> dict:
         "text_area_w":   text_area_w,
         "title_y":       title_y,
         "title_max_h":   title_max_h,
-        "player_y":      player_y,
         "review_y":      review_y,
         "review_max_h":  review_max_h,
     }
@@ -782,31 +769,14 @@ def draw_card(
     )
     draw.text((tx, ty + L["title_y"]), t_wrapped, font=t_font, fill=theme["text1"])
 
-    # ── プレイ人数 ───────────────────────────────────────────
-    players = game.get("players", [])
-    if players:
-        p_font, p_wrapped = fit_text_in_box(
-            draw, "  /  ".join(players), PLAYER_FONT_PT, L["text_area_w"],
-            PLAYER_H, min_size=PLAYER_MIN_PT,
-        )
-        draw.text((tx, ty + L["player_y"]), p_wrapped, font=p_font, fill=theme["text2"])
-
     # ── レビュー文 ───────────────────────────────────────────
-    # プレイ人数が未入力の場合、その分（PLAYER_H + ROW_GAP）をレビュー欄に詰める
     review = game.get("review", "").strip()
     if review and L["review_max_h"] > 0:
-        if players:
-            rev_y     = L["review_y"]
-            rev_max_h = L["review_max_h"]
-        else:
-            freed     = PLAYER_H + ROW_GAP
-            rev_y     = L["review_y"] - freed
-            rev_max_h = L["review_max_h"] + freed
         r_font, r_wrapped = fit_text_in_box(
-            draw, review, REVIEW_FONT_PT, L["text_area_w"], rev_max_h,
+            draw, review, REVIEW_FONT_PT, L["text_area_w"], L["review_max_h"],
             min_size=REVIEW_MIN_PT,
         )
-        draw.text((tx, ty + rev_y), r_wrapped, font=r_font, fill=theme["text2"])
+        draw.text((tx, ty + L["review_y"]), r_wrapped, font=r_font, fill=theme["text2"])
 
 
 # ═══════════════════════════════════════════════════════════
@@ -823,7 +793,7 @@ def generate_poster(
 ) -> Image.Image:
     """
     1920 × 1080 の Steam 布教まとめポスターを生成して PIL Image として返す。
-    show_title=True : ヘッダー 96px + 2列×4行（8ゲーム）+ フッター 36px
+    show_title=True : ヘッダー 88px + 2列×5行（10ゲーム）+ フッター 36px
     show_title=False: ヘッダーなし  + 2列×5行（10ゲーム）+ フッター 36px
     """
     layout = compute_layout(show_title)
@@ -842,8 +812,10 @@ def generate_poster(
             tb = draw.textbbox((0, 0), poster_title, font=h_font)
             tw = tb[2] - tb[0]
             th = tb[3] - tb[1]
+            # 上余白を最小化し、アクセントライン前に TITLE_BOTTOM_PAD を確保
+            text_y = max(4, layout["header_h"] - 4 - TITLE_BOTTOM_PAD - th)
             draw.text(
-                ((CANVAS_W - tw) // 2, (layout["header_h"] - 4 - th) // 2),
+                ((CANVAS_W - tw) // 2, text_y),
                 poster_title, font=h_font, fill=theme["text1"],
             )
 
@@ -985,11 +957,9 @@ def edit_dialog(i: int) -> None:
                     "image_url":      details.get("image_url"),
                     "price":          details.get("price", "不明"),
                     "review":         "",
-                    "players":        [],
                     "age_restricted": details.get("age_restricted", False),
                 }
                 st.session_state[f"dlg_review_{i}"]  = ""
-                st.session_state[f"dlg_players_{i}"] = []
                 st.session_state.search_results[i]   = []
                 st.session_state.pop(f"dlg_search_back_{i}", None)
             else:
@@ -1047,11 +1017,9 @@ def edit_dialog(i: int) -> None:
                     "image_url":      details["image_url"],
                     "price":          details["price"],
                     "review":         "",
-                    "players":        [],
                     "age_restricted": details.get("age_restricted", False),
                 }
                 st.session_state[f"dlg_review_{i}"]  = ""
-                st.session_state[f"dlg_players_{i}"] = []
                 st.session_state.search_results[i]   = []
                 st.session_state.pop(f"dlg_search_back_{i}", None)
 
@@ -1110,29 +1078,20 @@ def edit_dialog(i: int) -> None:
             price_raw = "18+ / 詳細取得不可" if game.get("age_restricted") else game["price"]
             st.markdown(_price_badge_html(price_raw), unsafe_allow_html=True)
 
-            st.multiselect(
-                "プレイ人数",
-                PLAYER_PRESETS,
-                key=f"dlg_players_{i}",
-                help="選択した内容がポスターのタイトル下に表示されます。未選択の場合はその分レビュー文のスペースが広がります。",
-            )
-
-            # ウィジェットの戻り値を直接使用（session_state 経由より1リランぶん遅延しない）
             review_now = st.text_area(
                 "レビュー文",
-                height=120,
+                height=160,
                 key=f"dlg_review_{i}",
-                help="文字数や改行が多い場合は、枠に収まるよう自動で文字サイズが縮小されます。プレイ人数を選ぶと使えるスペースが減ります。",
+                help="文字数や改行が多い場合は、枠に収まるよう自動で文字サイズが縮小されます。",
             )
             review_len = len(review_now or "")
 
-            # ── 動的文字数上限 ───────────────────────────────
-            _show_title = st.session_state.get("show_title", True)
-            _L          = compute_layout(_show_title)
-            _has_pl     = bool(st.session_state.get(f"dlg_players_{i}", game.get("players", [])))
-            _freed      = 0 if _has_pl else (PLAYER_H + ROW_GAP)
-            _base_h     = max(1, _L["review_max_h"])
-            max_chars   = max(140, int(140 * (_base_h + _freed) / _base_h))
+            # ── 文字数上限（レイアウトの review_max_h に比例） ──
+            _show_title  = st.session_state.get("show_title", True)
+            _num_g       = st.session_state.get("num_games_sel", 10)
+            _L           = compute_layout(_show_title, _num_g)
+            # 140文字 ≒ review_max_h=84px 相当を基準にスケール
+            max_chars    = max(140, int(_L["review_max_h"] * 140 / 84))
 
             over_limit = review_len > max_chars
             counter_id = f"dlg-rc-{i}"
@@ -1192,8 +1151,7 @@ def edit_dialog(i: int) -> None:
                          icon=":material/save:",
                          type="primary", use_container_width=True,
                          disabled=over_limit):
-                st.session_state.games[i]["review"]  = st.session_state.get(f"dlg_review_{i}", "")
-                st.session_state.games[i]["players"] = st.session_state.get(f"dlg_players_{i}", [])
+                st.session_state.games[i]["review"] = st.session_state.get(f"dlg_review_{i}", "")
                 st.session_state.pop(f"dlg_search_back_{i}", None)
                 del st.session_state["editing_slot"]
                 st.rerun()
@@ -1203,8 +1161,7 @@ def edit_dialog(i: int) -> None:
                          use_container_width=True):
                 st.session_state.games[i] = None
                 st.session_state.search_results[i] = []
-                for k in [f"dlg_review_{i}", f"dlg_players_{i}", f"dlg_q_{i}",
-                           f"dlg_search_back_{i}"]:
+                for k in [f"dlg_review_{i}", f"dlg_q_{i}", f"dlg_search_back_{i}"]:
                     st.session_state.pop(k, None)
                 del st.session_state["editing_slot"]
                 st.rerun()
@@ -1232,7 +1189,7 @@ def render_slot_card(i: int, disabled: bool = False) -> None:
 
     with st.container(border=True):
         if game:
-            # ── 上段: サムネ + タイトル・価格・人数 ─────────────
+            # ── 上段: サムネ + タイトル・価格 ─────────────────
             col_thumb, col_info = st.columns([2, 3])
             with col_thumb:
                 if game.get("age_restricted"):
@@ -1245,19 +1202,12 @@ def render_slot_card(i: int, disabled: bool = False) -> None:
                     if game.get("age_restricted")
                     else game["price"]
                 )
-                price_badge   = _price_badge_html(price_raw)
-                players_raw = " / ".join(game["players"]) if game.get("players") else ""
-                # プレイ人数を「プレイ人数: ○○」形式で表示
-                players_line = f"プレイ人数: {players_raw}" if players_raw else ""
-                lines = [
-                    f"<p style='margin:0 0 4px;font-weight:bold;font-size:0.95rem;line-height:1.3'>{game['title']}</p>",
-                    f"<p style='margin:0 0 4px'>{price_badge}</p>",
-                ]
-                if players_line:
-                    lines.append(
-                        f"<p style='margin:0;font-size:0.8rem;color:#aaa;line-height:1.4'>{players_line}</p>"
-                    )
-                st.markdown("".join(lines), unsafe_allow_html=True)
+                price_badge = _price_badge_html(price_raw)
+                st.markdown(
+                    f"<p style='margin:0 0 4px;font-weight:bold;font-size:0.95rem;line-height:1.3'>{game['title']}</p>"
+                    f"<p style='margin:0'>{price_badge}</p>",
+                    unsafe_allow_html=True,
+                )
             # ── 下段: レビュー文（カード全幅・改行対応） ────────
             review = game.get("review", "")
             if review:
@@ -1285,8 +1235,7 @@ def render_slot_card(i: int, disabled: bool = False) -> None:
             st.session_state["editing_slot"] = i
             # ダイアログを開く際にウィジェットをゲームの保存値でリセット
             if game:
-                st.session_state[f"dlg_review_{i}"]  = game.get("review", "")
-                st.session_state[f"dlg_players_{i}"] = game.get("players", [])
+                st.session_state[f"dlg_review_{i}"] = game.get("review", "")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1304,13 +1253,17 @@ def main() -> None:
     ensure_font()
     st.markdown(_GLOBAL_CSS, unsafe_allow_html=True)
 
-    st.title("SteamPosterMaker")
+    st.markdown(
+        "<h1 style='text-align:center;'>SteamPosterMaker</h1>",
+        unsafe_allow_html=True,
+    )
 
     # ── レイアウト・進捗をサイドバーより先に計算 ─────────────────
-    # show_title は session_state から先読みし、トグルウィジェットが
-    # 同一リラン内で変更することはないため、ここで確定した値を使い回す。
+    # show_title / num_games_sel は session_state から先読みし、
+    # 同一リラン内でウィジェットが変更することはないため確定値として使い回す。
     show_title        = st.session_state.get("show_title", True)
-    layout            = compute_layout(show_title)
+    num_games_sel     = st.session_state.get("num_games_sel", 10)
+    layout            = compute_layout(show_title, num_games_sel)
     num_games         = layout["num_games"]
     filled            = sum(1 for g in st.session_state.games[:num_games] if g is not None)
     already_generated = "last_poster_bytes" in st.session_state
@@ -1332,10 +1285,47 @@ def main() -> None:
 
         st.divider()
         st.markdown("### 開発者をフォロー")
-        st.link_button(
-            "𝕏  @Yuki_HERO44",
-            "https://x.com/Yuki_HERO44",
-            use_container_width=True,
+        st.markdown(
+            """
+<style>
+  .x-btn-sidebar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    background: #000;
+    color: #fff !important;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    text-decoration: none !important;
+    line-height: 1.4;
+    white-space: nowrap;
+    transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+  }
+  .x-btn-sidebar:visited, .x-btn-sidebar:active, .x-btn-sidebar:focus {
+    color: #fff !important;
+    text-decoration: none !important;
+  }
+  .x-btn-sidebar:hover {
+    background: #1a1a1a;
+    border-color: #666;
+    opacity: 0.85;
+    color: #fff !important;
+  }
+</style>
+<a href="https://x.com/Yuki_HERO44" target="_blank" rel="noopener noreferrer" class="x-btn-sidebar">
+  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="white">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.258 5.629 5.906-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+  </svg>
+  @Yuki_HERO44
+</a>
+""",
+            unsafe_allow_html=True,
         )
 
         # ── 開発者ツール（DEV_MODE=False で非表示）────────────────
@@ -1357,8 +1347,7 @@ def main() -> None:
                         k: (list(v) if isinstance(v, list) else v)
                         for k, v in game_data.items()
                     }
-                    st.session_state[f"dlg_review_{idx}"]  = game_data["review"]
-                    st.session_state[f"dlg_players_{idx}"] = list(game_data["players"])
+                    st.session_state[f"dlg_review_{idx}"] = game_data["review"]
                     # ダイアログフェーズフラグを確実にリセット
                     st.session_state.pop(f"dlg_search_back_{idx}", None)
                 for idx in range(len(picks), MAX_GAMES):
@@ -1377,13 +1366,13 @@ def main() -> None:
             "全体見出し",
             value=True,
             key="show_title",
-            help="OFF にすると見出しなし・10本紹介モードに切り替わります（常に 1920×1080 出力）",
+            help="OFF にすると上部の見出し帯が非表示になり、ゲームカードが少し大きくなります（常に10本・1920×1080 出力）",
         )
     with col_ttl:
         if show_title:
             poster_title = st.text_input(
                 "見出しテキスト",
-                value="2026年 神ゲー8選",
+                value="2026年 神ゲー10選",
                 max_chars=25,
                 placeholder="25文字以内",
                 key="poster_title",
@@ -1394,9 +1383,17 @@ def main() -> None:
             # トグルOFF時は入力欄を非表示にして説明テキストだけ表示
             # session_state の値は保持されるため、ON に戻すと入力内容が復元される
             poster_title = st.session_state.get("poster_title", "")
-            st.caption("見出しなし — 10本紹介モード")
+            st.caption("見出しなし")
     with col_pop:
         with st.popover("表示設定", icon=":material/settings:", use_container_width=True):
+            st.radio(
+                "ゲーム数",
+                [8, 10],
+                horizontal=True,
+                key="num_games_sel",
+                help="8本: カードが大きめ / 10本: カードが小さめ",
+            )
+            st.divider()
             theme_name = st.selectbox(
                 "テーマ",
                 list(THEMES.keys()),
@@ -1547,7 +1544,7 @@ def main() -> None:
                 poster.save(buf, format="PNG", compress_level=1)
                 st.session_state["last_poster_bytes"] = buf.getvalue()
                 date_str   = datetime.date.today().strftime("%Y%m%d")
-                pick_label = "8pick" if show_title else "10pick"
+                pick_label = "10pick"
                 title_part = _safe_filename(poster_title) if show_title and poster_title.strip() else ""
                 fname_body = f"steam_{pick_label}_{title_part}_{date_str}" if title_part else f"steam_{pick_label}_{date_str}"
                 st.session_state["last_poster_meta"] = {

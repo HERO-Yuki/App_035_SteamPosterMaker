@@ -5,6 +5,45 @@
 
 ---
 
+## v13（2026-04-10）— プレイ人数フィールド完全撤廃
+
+**背景・目的**
+- プレイ人数行（`PLAYER_H = 26px`）がポスター上のレビューエリアを圧迫し、紹介文の記述量が制限されていた
+- 入力したければユーザーがレビュー文に自由記述できるため、専用フィールドは不要と判断
+
+**app.py 変更内容**
+- 定数 `PLAYER_H`, `PLAYER_FONT_PT`, `PLAYER_MIN_PT`, `PLAYER_PRESETS` を削除
+- `compute_layout`: `player_y` 計算・戻り値を削除。`review_y = title_y + title_max_h + ROW_GAP` に簡略化
+- `draw_card`: プレイ人数描画ブロック撤廃。プレイ人数空き時の `freed` 補正ロジックも不要になり削除。レビュー描画を常に `L["review_y"] / L["review_max_h"]` を使う1パスに統一
+- `edit_dialog`: `st.multiselect("プレイ人数")` を削除。文字数上限を `int(_L["review_max_h"] * 140 / 84)` で計算（84px = 旧基準高さ）。`text_area` height を 120→160px に拡大
+- `render_slot_card`: プレイ人数行の表示を削除
+- ゲームデータ初期化・保存・クリア処理から `players` キー・`dlg_players_{i}` session_state を全て除去
+- `_DEV_SAMPLE_GAMES` から `"players"` フィールドを削除
+
+**効果**
+- review_max_h が約 38% 増加（10-game, show_title=True: 84px → 116px）
+- max_chars 上限が 140 → 約 193 文字（同条件）に自動拡大
+- 8-game モードや no-title モードではさらに増加
+
+---
+
+## v12（2026-04-10）— ゲーム数選択・アクセントカラー変更・サイドバー X ボタン統一
+
+**ゲーム数選択（8本 / 10本）**
+- 設定 popover に `st.radio("ゲーム数", [8, 10])` を追加（key: `num_games_sel`）
+- `compute_layout(show_title, num_games)` に `num_games` パラメータを追加
+- カード高さが 8本モードで大きく、10本モードで小さく自動調整
+
+**アクセントカラー変更**
+- `config.toml`: `primaryColor "#A4D007"` → `"#d99200"`（オレンジゴールド）
+
+**サイドバー「開発者をフォロー」ボタン**
+- `st.link_button` を廃止し、X ブランドカラー（黒背景・白文字）のカスタム HTML ボタンに変更
+- `:hover` エフェクト（背景色・ボーダー・opacity）を追加
+- CSS クラス `.x-btn-sidebar` を新設（`.x-btn` と同様のスタイル）
+
+---
+
 ## v11（2026-04-10）— テーマカラー変更・セール強調・ボタン整理
 
 **テーマカラー変更（config.toml）**
