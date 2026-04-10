@@ -42,8 +42,9 @@ TITLE_MAX_H_ON  = 52    # 全体見出しあり時のタイトル最大高さ（
 TITLE_MAX_H_OFF = 42    # 全体見出しなし時のタイトル最大高さ（px）
 
 # ── 価格バッジ ───────────────────────────────────────────
-PRICE_BADGE_PAD  = 8    # バッジ内テキスト余白（px）
-PRICE_BADGE_EDGE = 10   # バッジとサムネ端の余白（px）
+PRICE_BADGE_PAD  = 8          # バッジ内テキスト余白（px）
+PRICE_BADGE_EDGE = 10         # バッジとサムネ端の余白（px）
+SALE_GREEN       = (164, 208, 7)  # #A4D007 — セール割引率テキスト色（Steam グリーン）
 
 # ── タイポグラフィ（ポスター画像上のフォントサイズ / pt）──
 HEADER_FONT_PT   = 64   # 全体見出し
@@ -747,7 +748,23 @@ def draw_card(
     badge_bg = Image.new("RGBA", (badge_w, badge_h), (0, 0, 0, 185))
     section  = canvas.crop((bx1, by1, bx2, by2)).convert("RGBA")
     canvas.paste(Image.alpha_composite(section, badge_bg).convert("RGB"), (bx1, by1))
-    draw.text((bx1 + PRICE_BADGE_PAD, by1 + PRICE_BADGE_PAD), price_text, font=price_font, fill=theme["accent"])
+    # 割引価格（例: "-50%  ¥1,200"）は割引率を SALE_GREEN、定価を accent で分割描画
+    if price_text.startswith("-") and "  " in price_text:
+        disc_part, rest_part = price_text.split("  ", 1)
+        prefix_w = int(draw.textlength(disc_part + "  ", font=price_font))
+        draw.text(
+            (bx1 + PRICE_BADGE_PAD, by1 + PRICE_BADGE_PAD),
+            disc_part, font=price_font, fill=SALE_GREEN,
+        )
+        draw.text(
+            (bx1 + PRICE_BADGE_PAD + prefix_w, by1 + PRICE_BADGE_PAD),
+            rest_part, font=price_font, fill=theme["accent"],
+        )
+    else:
+        draw.text(
+            (bx1 + PRICE_BADGE_PAD, by1 + PRICE_BADGE_PAD),
+            price_text, font=price_font, fill=theme["accent"],
+        )
 
     # ─── アクセントカラーの縦区切り線 ───────────────────────
     draw.rectangle(
@@ -1553,7 +1570,6 @@ def main() -> None:
             data=poster_bytes,
             file_name=meta["filename"],
             mime="image/png",
-            type="primary",
             use_container_width=True,
         )
         # 画像が描画されてから toast を出す
