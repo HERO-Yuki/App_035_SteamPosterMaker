@@ -1354,33 +1354,40 @@ def main() -> None:
 <div id="spm-sticky-bar" style="
   position:fixed;bottom:0;left:0;right:0;z-index:9999;
   background:#1b2838;border-top:2px solid #2a475e;
-  padding:8px 24px 10px;display:flex;align-items:center;gap:16px;
+  padding:8px 0 10px;
   box-shadow:0 -2px 12px rgba(0,0,0,.5);
+  display:flex;justify-content:center;
 ">
-  <div style="flex:1;min-width:140px;">
-    <div style="font-size:0.73rem;color:#aaa;margin-bottom:4px;letter-spacing:.03em;">
-      {filled} / {num_games} 本登録
+  <!-- 中央コンテナ: 左右に余白・最大幅制限 -->
+  <div style="display:flex;align-items:center;gap:20px;
+              width:100%;max-width:640px;padding:0 32px;">
+    <!-- プログレスバー（固定幅） -->
+    <div style="width:180px;flex-shrink:0;">
+      <div style="font-size:0.73rem;color:#aaa;margin-bottom:4px;letter-spacing:.03em;">
+        {filled} / {num_games} 本登録
+      </div>
+      <div style="background:#2a475e;border-radius:4px;height:7px;overflow:hidden;">
+        <div style="background:{_accent};width:{_progress_pct}%;height:100%;
+                    border-radius:4px;transition:width .3s;"></div>
+      </div>
     </div>
-    <div style="background:#2a475e;border-radius:4px;height:7px;overflow:hidden;">
-      <div style="background:{_accent};width:{_progress_pct}%;height:100%;
-                  border-radius:4px;transition:width .3s;"></div>
-    </div>
+    <!-- 生成ボタン -->
+    <button {_disabled_attr}
+      onclick="{_btn_onclick}"
+      style="display:inline-flex;align-items:center;gap:6px;
+             background:{_btn_bg};color:{_btn_color};border:none;
+             border-radius:6px;padding:9px 22px;font-size:0.9rem;
+             font-weight:bold;cursor:{_btn_cursor};white-space:nowrap;
+             transition:opacity .2s;font-family:inherit;"
+      onmouseover="if(!this.disabled)this.style.opacity='.8'"
+      onmouseout="this.style.opacity='1'"
+    >
+      <span style="font-family:'Material Symbols Rounded';font-size:1.15rem;
+                   font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;
+                   line-height:1;vertical-align:middle;">{_btn_icon}</span>
+      {_btn_label}
+    </button>
   </div>
-  <button {_disabled_attr}
-    onclick="{_btn_onclick}"
-    style="display:inline-flex;align-items:center;gap:6px;
-           background:{_btn_bg};color:{_btn_color};border:none;
-           border-radius:6px;padding:9px 22px;font-size:0.9rem;
-           font-weight:bold;cursor:{_btn_cursor};white-space:nowrap;
-           transition:opacity .2s;font-family:inherit;"
-    onmouseover="if(!this.disabled)this.style.opacity='.8'"
-    onmouseout="this.style.opacity='1'"
-  >
-    <span style="font-family:'Material Symbols Rounded';font-size:1.15rem;
-                 font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;
-                 line-height:1;vertical-align:middle;">{_btn_icon}</span>
-    {_btn_label}
-  </button>
 </div>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
 """,
