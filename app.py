@@ -284,17 +284,19 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
   padding:8px 0 10px;box-shadow:0 -2px 12px rgba(0,0,0,.5);
   display:flex;justify-content:center;
 ">
-  <div style="display:flex;align-items:center;gap:20px;
-              width:100%;max-width:640px;padding:0 32px;">
-    <div style="width:180px;flex-shrink:0;">
-      <div style="font-size:0.73rem;color:#aaa;margin-bottom:4px;letter-spacing:.03em;">
-        {filled} / {num_games} 本登録
+  <!-- 中央寄せコンテナ（最大幅・左右余白） -->
+  <div style="display:inline-flex;align-items:center;gap:16px;padding:0 40px;">
+    <!-- プログレスバー（短め・固定幅） -->
+    <div style="width:120px;flex-shrink:0;">
+      <div style="font-size:0.7rem;color:#aaa;margin-bottom:3px;white-space:nowrap;">
+        {filled} / {num_games} 本
       </div>
-      <div style="background:#2a475e;border-radius:4px;height:7px;overflow:hidden;">
+      <div style="background:#2a475e;border-radius:4px;height:6px;overflow:hidden;">
         <div style="background:{_PRIMARY_COLOR};width:{pct}%;height:100%;
                     border-radius:4px;transition:width .3s;"></div>
       </div>
     </div>
+    <!-- 生成ボタン -->
     <button {disabled} onclick="{onclick}"
       style="display:inline-flex;align-items:center;gap:6px;
              background:{btn_bg};color:{btn_color};border:none;
