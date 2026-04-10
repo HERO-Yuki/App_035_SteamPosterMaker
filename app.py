@@ -877,16 +877,16 @@ def draw_card(
         disc_part, rest_part = price_text.split("  ", 1)
         prefix_w = int(draw.textlength(disc_part + "  ", font=price_font))
         draw.text(
-            (bx1 + PRICE_BADGE_PAD, by1 + PRICE_BADGE_PAD),
+            (bx1 + PRICE_BADGE_PAD - price_bb[0], by1 + PRICE_BADGE_PAD - price_bb[1]),
             disc_part, font=price_font, fill=SALE_GREEN,
         )
         draw.text(
-            (bx1 + PRICE_BADGE_PAD + prefix_w, by1 + PRICE_BADGE_PAD),
+            (bx1 + PRICE_BADGE_PAD - price_bb[0] + prefix_w, by1 + PRICE_BADGE_PAD - price_bb[1]),
             rest_part, font=price_font, fill=theme["accent"],
         )
     else:
         draw.text(
-            (bx1 + PRICE_BADGE_PAD, by1 + PRICE_BADGE_PAD),
+            (bx1 + PRICE_BADGE_PAD - price_bb[0], by1 + PRICE_BADGE_PAD - price_bb[1]),
             price_text, font=price_font, fill=theme["accent"],
         )
 
