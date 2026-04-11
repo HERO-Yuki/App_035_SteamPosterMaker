@@ -266,6 +266,81 @@ section[data-testid="stMain"] > div > div { padding-bottom: 64px !important; }
 /* ── 言語トグルボタン: テキスト折り返しを防ぐ ── */
 div[data-testid="stButton"] > button { white-space: nowrap !important; }
 
+/* ── コピーライトフッター（全幅・最下部） ── */
+.spm-copyright {
+  background: #000;
+  color: #fff;
+  text-align: center;
+  font-size: 0.75rem;
+  padding: 14px 20px;
+  /* Streamlit の content padding を打ち消して全幅に */
+  margin: 8px calc(-50vw + 50%) 0;
+  width: 100vw;
+}
+
+/* ═══════════════════════════════════════════════════
+   モバイル対応 (≤ 768px)
+   ═══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── ゲームスロット: 2列 → 1列縦積み ── */
+  [data-testid="stHorizontalBlock"]:has(
+    [data-testid="stVerticalBlockBorderWrapper"]
+  ) {
+    flex-direction: column !important;
+  }
+
+  /* ── フッター列: 縦積み & セパレーターを横線に変換 ── */
+  [data-testid="stHorizontalBlock"]:has(.footer-sep) {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .footer-sep {
+    border-left: none !important;
+    border-top: 1px solid #444 !important;
+    width: 100% !important;
+    height: 1px !important;
+    min-height: 1px !important;
+    margin: 0.5rem 0 !important;
+  }
+
+  /* ── ダイアログ内 2カラム → 縦積み ── */
+  [data-testid="stDialog"] [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+  }
+
+  /* ── X / OFUSE ボタン: タッチターゲット拡大 ── */
+  .x-btn, .ofuse-btn {
+    padding: 10px 18px !important;
+    font-size: 0.95rem !important;
+    min-width: 140px !important;
+  }
+
+  /* ── スティッキーバー: 余白・フォント縮小 ── */
+  #spm-sticky-bar > div {
+    padding: 0 12px !important;
+    gap: 8px !important;
+  }
+  #spm-sticky-bar-progress {
+    width: 90px !important;
+  }
+  #spm-sticky-bar-label {
+    font-size: 0.65rem !important;
+  }
+  #spm-sticky-bar-btn {
+    padding: 8px 12px !important;
+    font-size: 0.8rem !important;
+  }
+
+  /* ── コピーライトフッター: SP では全幅維持 ── */
+  .spm-copyright {
+    margin: 8px -1rem 0 !important;
+    width: calc(100% + 2rem) !important;
+    font-size: 0.7rem !important;
+    padding: 12px 12px !important;
+  }
+}
+
 /* ── スロットカード行: 高さを同一に揃える ── */
 /* ボーダーコンテナを含む横並びブロックのみ対象にし、他の行に影響させない */
 [data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"]) {
@@ -555,8 +630,8 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
   <!-- 中央寄せコンテナ（最大幅・左右余白） -->
   <div style="display:inline-flex;align-items:center;gap:16px;padding:0 40px;">
     <!-- プログレスバー（短め・固定幅） -->
-    <div style="width:120px;flex-shrink:0;">
-      <div style="font-size:0.7rem;color:#aaa;margin-bottom:3px;white-space:nowrap;">
+    <div id="spm-sticky-bar-progress" style="width:120px;flex-shrink:0;">
+      <div id="spm-sticky-bar-label" style="font-size:0.7rem;color:#aaa;margin-bottom:3px;white-space:nowrap;">
         {t("sticky_count", filled=filled, num=num_games)}
       </div>
       <div style="background:{_STEAM_BG2};border-radius:4px;height:6px;overflow:hidden;">
@@ -565,7 +640,7 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
       </div>
     </div>
     <!-- 生成ボタン -->
-    <button {disabled} onclick="{onclick}"
+    <button id="spm-sticky-bar-btn" {disabled} onclick="{onclick}"
       style="display:inline-flex;align-items:center;gap:6px;
              background:{btn_bg};color:{btn_color};border:none;
              border-radius:6px;padding:9px 22px;font-size:0.9rem;
@@ -1877,15 +1952,19 @@ def main() -> None:
 (function() {
   var BAR_ID = 'spm-sticky-bar';
   var SEN_ID = 'poster-gen-sentinel';
-  var doc    = window.parent.document;
+  var doc = window.parent.document;
+  /* iframe 内の IntersectionObserver は iframe の viewport(height=0)を root にするため
+     window.parent.IntersectionObserver を使い、親ページの viewport を root にする */
+  var ParentIO = window.parent.IntersectionObserver;
 
   function setup() {
     var bar = doc.getElementById(BAR_ID);
     var sen = doc.getElementById(SEN_ID);
-    if (!bar || !sen) return false;
-    /* 既存 Observer を破棄して重複登録を防ぐ */
+    if (!bar || !sen || !ParentIO) return false;
     if (bar._spmIO) { bar._spmIO.disconnect(); }
-    var io = new IntersectionObserver(function(entries) {
+    /* rootMargin: top を大きく取り、sentinel が上方に外れても「交差中」を維持する
+       → 一度生成エリアを通過したらページ最下部でもバーが再表示されない */
+    var io = new ParentIO(function(entries) {
       var hidden = entries[0].isIntersecting;
       bar.style.opacity       = hidden ? '0' : '1';
       bar.style.pointerEvents = hidden ? 'none' : 'auto';
@@ -1895,7 +1974,6 @@ def main() -> None:
     return true;
   }
 
-  /* sentinel はコンテンツ中頃に挿入されるため、未登録なら MutationObserver で待機 */
   if (!setup()) {
     var mo = new MutationObserver(function() {
       if (setup()) mo.disconnect();
@@ -2063,7 +2141,7 @@ def main() -> None:
 
     with col_sep:
         st.markdown(
-            "<div style='border-left:1px solid #444;height:220px;"
+            "<div class='footer-sep' style='border-left:1px solid #444;height:220px;"
             "margin:0 auto;width:1px;'></div>",
             unsafe_allow_html=True,
         )
@@ -2133,8 +2211,7 @@ def main() -> None:
 
     # ── コピーライトフッター ────────────────────────────────
     st.markdown(
-        "<div style='background:#000;color:#fff;text-align:center;"
-        "font-size:0.75rem;padding:12px 20px;margin-top:8px;border-radius:6px;'>"
+        "<div class='spm-copyright'>"
         "© 2026 Yuuki Hiiro &nbsp;—&nbsp; "
         "This app is an unofficial fan-made tool, not affiliated with Valve."
         "</div>",
