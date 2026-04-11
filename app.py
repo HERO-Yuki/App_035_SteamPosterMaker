@@ -2207,8 +2207,10 @@ def main() -> None:
 **動作保証について**
 * Steam Web API の仕様変更やサーバー状況により、一時的にゲーム情報の取得に失敗する場合があります。
 * 本アプリの動作や出力結果について、開発者は一切の責任を負いません。また、予告なく機能の変更や公開停止を行う場合があります。
-* 本アプリは <a href="https://streamlit.io" target="_blank" style="color:#a8c8e8;text-decoration:underline">Streamlit</a> を使用して構築されています。Streamlit Cloud の<a href="https://streamlit.io/terms-of-use" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>も併せて適用されます。
-* 本アプリのフッターには、開発者への支援を受け付ける外部サービス <a href="https://ofuse.me" target="_blank" style="color:#a8c8e8;text-decoration:underline">OFUSE</a>（株式会社 Sozi）へのリンクを含みます。OFUSE の利用には OFUSE の<a href="https://ofuse.me/terms" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>が適用されます。
+
+**利用している外部サービスについて**
+* 本アプリは <a href="https://streamlit.io" target="_blank" style="color:#a8c8e8;text-decoration:underline">Streamlit</a> を使用して構築されており、<a href="https://streamlit.io/cloud" target="_blank" style="color:#a8c8e8;text-decoration:underline">Streamlit Community Cloud</a> 上でホスティングされています。Streamlit の<a href="https://streamlit.io/terms-of-use" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>も併せて適用されます。
+* フッターの「OFUSE」ボタンは、開発者個人の支援ページ（<a href="https://ofuse.me" target="_blank" style="color:#a8c8e8;text-decoration:underline">ofuse.me</a> / 株式会社 Sozi）へのリンクです。OFUSE はこのアプリとは無関係であり、OFUSE の<a href="https://ofuse.me/terms" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>はOFUSE サービス内でのみ適用されます。支援はあくまで任意です。
             """,
             unsafe_allow_html=True,
         )
