@@ -52,7 +52,7 @@ HEADER_FONT_PT   = 52   # 全体見出し
 TITLE_V_PAD      = 8    # 全体見出しの上下パディング（px）— ヘッダー高さ計算（_actual_header_h）にも使用
 TITLE_FONT_PT    = 28   # ゲームタイトル（初期）
 TITLE_MIN_PT     = 16   # ゲームタイトル（最小）
-REVIEW_FONT_PT   = 19   # レビュー文（初期）
+REVIEW_FONT_PT   = 26   # レビュー文（初期）— 見出しあり8本モードで約4行が収まるサイズ
 REVIEW_MIN_PT    = 11   # レビュー文（最小）
 PRICE_FONT_PT    = 24   # 価格バッジ
 SLOT_PH_FONT_PT  = 28   # 空スロットプレースホルダ
@@ -1230,16 +1230,17 @@ def edit_dialog(i: int) -> None:
                 "レビュー文",
                 height=160,
                 key=f"dlg_review_{i}",
-                help="文字数や改行が多い場合は、枠に収まるよう自動で文字サイズが縮小されます。",
+                help="ポスターに約4行分の文章が収まります（見出しあり8本モード基準）。超える場合はフォントサイズが自動縮小されます。",
             )
             review_len = len(review_now or "")
 
-            # ── 文字数上限（レイアウトの review_max_h に比例） ──
+            # ── 文字数上限（利用可能エリアに対して REVIEW_FONT_PT を基準に算出） ──
+            # 計算式: area_h * area_w / FONT_PT² ≈ 収容行数 × 行あたり文字数
+            # 見出しあり8本=124 / 見出しあり10本=94 / 見出しなし8本=138 / 見出しなし10本=105
             _show_title  = st.session_state.get("show_title", True)
             _num_g       = st.session_state.get("num_games_sel", 8)
             _L           = compute_layout(_show_title, _num_g)
-            # 140文字 ≒ review_max_h=84px 相当を基準にスケール
-            max_chars    = max(140, int(_L["review_max_h"] * 140 / 84))
+            max_chars    = max(60, int(_L["review_max_h"] * _L["text_area_w"] // (REVIEW_FONT_PT ** 2)))
 
             over_limit = review_len > max_chars
             counter_id = f"dlg-rc-{i}"
