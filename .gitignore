@@ -50,6 +50,8 @@ docs/
 *.png
 *.jpg
 *.jpeg
+# OGP / social preview image (committed intentionally)
+!ogp.png
 
 # Downloaded / generated font assets
 *.otf
