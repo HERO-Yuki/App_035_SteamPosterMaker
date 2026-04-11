@@ -2024,12 +2024,14 @@ def main() -> None:
             f"{t('feedback_body')}</p>",
             unsafe_allow_html=True,
         )
-        st.link_button(
-            t("feedback_btn"),
-            "https://forms.gle/GpBA3PHgZHsze82r8",
-            icon=":material/rate_review:",
-            use_container_width=True,
-        )
+        _, btn_col, _ = st.columns([1, 4, 1])
+        with btn_col:
+            st.link_button(
+                t("feedback_btn"),
+                "https://forms.gle/GpBA3PHgZHsze82r8",
+                icon=":material/rate_review:",
+                use_container_width=True,
+            )
 
     with col_author:
         st.markdown(
