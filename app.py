@@ -501,6 +501,7 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
   background:{_STEAM_BG};border-top:2px solid {_STEAM_BG2};
   padding:8px 0 10px;box-shadow:0 -2px 12px rgba(0,0,0,.5);
   display:flex;justify-content:center;
+  opacity:1;transition:opacity 0.4s ease;
 ">
   <!-- 中央寄せコンテナ（最大幅・左右余白） -->
   <div style="display:inline-flex;align-items:center;gap:16px;padding:0 40px;">
@@ -1836,7 +1837,9 @@ def main() -> None:
     /* 既存 Observer を破棄して重複登録を防ぐ */
     if (bar._spmIO) { bar._spmIO.disconnect(); }
     var io = new IntersectionObserver(function(entries) {
-      bar.style.display = entries[0].isIntersecting ? 'none' : 'flex';
+      var hidden = entries[0].isIntersecting;
+      bar.style.opacity       = hidden ? '0' : '1';
+      bar.style.pointerEvents = hidden ? 'none' : 'auto';
     }, { rootMargin: '0px' });
     bar._spmIO = io;
     io.observe(sen);
