@@ -184,7 +184,7 @@ _X_BUTTON_ICON_HTML = """
 
 _OFUSE_BUTTON_HTML = """
 <div style="text-align:center;margin:0 0 20px;">
-  <a href="https://ofuse.me/168739" target="_blank" rel="noopener noreferrer" class="ofuse-btn">
+  <a href="https://ofuse.me/d57de631" target="_blank" rel="noopener noreferrer" class="ofuse-btn">
     OFUSE
   </a>
 </div>
