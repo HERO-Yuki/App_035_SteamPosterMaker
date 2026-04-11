@@ -182,6 +182,14 @@ _X_BUTTON_ICON_HTML = """
 </div>
 """
 
+_OFUSE_BUTTON_HTML = """
+<div style="text-align:center;margin:0 0 20px;">
+  <a href="https://ofuse.me/168739" target="_blank" rel="noopener noreferrer" class="ofuse-btn">
+    ☕ OFUSEで応援する
+  </a>
+</div>
+"""
+
 # グローバル CSS（スロットカード高さ揃え + 列ギャップ調整 + X ボタン共通スタイル）
 _GLOBAL_CSS = """
 <style>
@@ -222,6 +230,32 @@ section[data-testid="stMain"] > div > div { padding-bottom: 90px !important; }
   background: #1a1a1a;
   border-color: #666;
   opacity: 0.85;
+  color: #fff !important;
+}
+
+/* ── OFUSE 応援ボタン ── */
+.ofuse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #2882A7;
+  color: #fff !important;
+  border: 1px solid #2882A7;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-decoration: none !important;
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+}
+.ofuse-btn:visited, .ofuse-btn:active, .ofuse-btn:focus {
+  color: #fff !important;
+  text-decoration: none !important;
+}
+.ofuse-btn:hover {
+  opacity: 0.8;
   color: #fff !important;
 }
 
@@ -338,7 +372,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # 全クリアダイアログ
         "clear_all_warning":    "登録されているすべてのゲームを削除します。この操作は取り消せません。",
         "clear_all_confirm":    "すべて削除する",
-        # X ボタン
+        # X ボタン・OFUSE ボタン
+        "ofuse_header":         "開発者を応援する",
         "author_section":       "開発者をフォローする",
         "disclaimer_unofficial":"本アプリは非公式のファンメイドツールです。",
         "disclaimer_no_relation":"Steam および Valve Corporation とは直接的な関わりはありません。",
@@ -436,8 +471,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Clear all dialog
         "clear_all_warning":    "This will remove all registered games. This cannot be undone.",
         "clear_all_confirm":    "Delete All",
-        # X button
-        "author_section":       "Support the developer",
+        # X button / OFUSE button
+        "ofuse_header":         "Support the developer",
+        "author_section":       "Follow the developer",
         "disclaimer_unofficial":"This is an unofficial fan-made tool.",
         "disclaimer_no_relation":"It has no affiliation with Steam or Valve Corporation.",
         "disclaimer_trademark": "Steam trademarks and logos are the property of Valve Corporation.",
@@ -2043,13 +2079,21 @@ def main() -> None:
             )
 
     with col_author:
+        # ① OFUSE 応援ボタン
         st.markdown(
+            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 1.6em;'>"
+            f"{t('ofuse_header')}</p>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(_OFUSE_BUTTON_HTML, unsafe_allow_html=True)
+        # ② X フォローボタン
+        st.markdown(
+            "<hr style='margin:4px 0 16px;border:none;border-top:1px solid #444;'>"
             f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 1.6em;'>"
             f"{t('author_section')}</p>",
             unsafe_allow_html=True,
         )
         st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
-        # TODO: Buy me a coffee ボタンをここに追加予定
 
     # ④ 利用規約・免責事項
     st.divider()
@@ -2075,6 +2119,7 @@ def main() -> None:
 * Steam Web API の仕様変更やサーバー状況により、一時的にゲーム情報の取得に失敗する場合があります。
 * 本アプリの動作や出力結果について、開発者は一切の責任を負いません。また、予告なく機能の変更や公開停止を行う場合があります。
 * 本アプリは <a href="https://streamlit.io" target="_blank" style="color:#a8c8e8;text-decoration:underline">Streamlit</a> を使用して構築されています。Streamlit Cloud の<a href="https://streamlit.io/terms-of-use" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>も併せて適用されます。
+* 本アプリのフッターには、開発者への支援を受け付ける外部サービス <a href="https://ofuse.me" target="_blank" style="color:#a8c8e8;text-decoration:underline">OFUSE</a>（株式会社 Sozi）へのリンクを含みます。OFUSE の利用には OFUSE の<a href="https://ofuse.me/terms" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>が適用されます。
             """,
             unsafe_allow_html=True,
         )
