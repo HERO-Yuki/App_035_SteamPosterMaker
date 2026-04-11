@@ -1995,31 +1995,35 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    # ② フィードバックフォーム
+    # ② フィードバックフォーム ＋ ③ 作者への導線（横並び）
     st.divider()
-    st.markdown(
-        f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
-        f"{t('feedback_header')}</p>"
-        f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 8px;'>"
-        f"{t('feedback_body')}</p>",
-        unsafe_allow_html=True,
-    )
-    st.link_button(
-        t("feedback_btn"),
-        "https://forms.gle/GpBA3PHgZHsze82r8",
-        icon=":material/rate_review:",
-        use_container_width=True,
-    )
+    col_fb, col_author = st.columns(2)
 
-    # ③ 作者への導線（X フォロー ＋ Buy me a coffee）
-    st.divider()
-    st.markdown(
-        f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 8px;'>"
-        f"{t('author_section')}</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
-    # TODO: Buy me a coffee ボタンをここに追加予定
+    with col_fb:
+        st.markdown(
+            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
+            f"{t('feedback_header')}</p>"
+            f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 8px;'>"
+            f"{t('feedback_body')}</p>",
+            unsafe_allow_html=True,
+        )
+        st.link_button(
+            t("feedback_btn"),
+            "https://forms.gle/GpBA3PHgZHsze82r8",
+            icon=":material/rate_review:",
+            use_container_width=True,
+        )
+
+    with col_author:
+        st.markdown(
+            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
+            f"{t('author_section')}</p>"
+            "<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 8px;'>"
+            "@Yuki_HERO44</p>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
+        # TODO: Buy me a coffee ボタンをここに追加予定
 
     # ④ 利用規約・免責事項
     st.divider()
