@@ -259,6 +259,9 @@ section[data-testid="stMain"] > div > div { padding-bottom: 90px !important; }
   color: #fff !important;
 }
 
+/* ── 言語トグルボタン: テキスト折り返しを防ぐ ── */
+div[data-testid="stButton"] > button { white-space: nowrap !important; }
+
 /* ── スロットカード行: 高さを同一に揃える ── */
 /* ボーダーコンテナを含む横並びブロックのみ対象にし、他の行に影響させない */
 [data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"]) {
@@ -1699,7 +1702,7 @@ def main() -> None:
         unsafe_allow_html=True,
     )
     # ── 言語トグル（右上） ───────────────────────────────────
-    col_spacer, col_lang = st.columns([10, 1])
+    col_spacer, col_lang = st.columns([8, 2])
     with col_lang:
         if st.button(
             t("lang_toggle"), key="lang_toggle_btn",
