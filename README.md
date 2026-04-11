@@ -157,6 +157,9 @@ App_035_SteamPosterMaker/
 
 開発者: [@Yuki_HERO44](https://x.com/Yuki_HERO44) on X
 
+このアプリが役に立ったら、OFUSE でコーヒー1杯分の応援をいただけると嬉しいです ☕  
+[![OFUSE](https://img.shields.io/badge/OFUSE-応援する-2882A7?style=flat)](https://ofuse.me/168739)
+
 ---
 
 ## 免責事項
