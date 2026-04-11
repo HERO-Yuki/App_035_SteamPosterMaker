@@ -339,7 +339,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "clear_all_warning":    "登録されているすべてのゲームを削除します。この操作は取り消せません。",
         "clear_all_confirm":    "すべて削除する",
         # X ボタン
-        "x_feedback":           "ご意見・ご要望は開発者のXまで",
+        "x_feedback":           "開発者をフォローする",
+        "author_section":       "開発者を応援する",
         "feedback_header":      "フィードバック",
         "feedback_body":        "バグ報告や機能のご要望はこちら",
         "feedback_btn":         "要望・バグ報告フォーム",
@@ -432,7 +433,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "clear_all_warning":    "This will remove all registered games. This cannot be undone.",
         "clear_all_confirm":    "Delete All",
         # X button
-        "x_feedback":           "Feedback & requests → developer's X",
+        "x_feedback":           "Follow the developer",
+        "author_section":       "Support the developer",
         "feedback_header":      "Feedback",
         "feedback_body":        "Bug reports and feature requests welcome",
         "feedback_btn":         "Send Feedback",
@@ -1968,8 +1970,11 @@ def main() -> None:
         if st.session_state.pop("_poster_complete", False):
             st.toast(t("toast_done"), icon=":material/check_circle:")
 
-    # ── 免責事項 ────────────────────────────────────────────
+    # ── フッター ────────────────────────────────────────────
+    # 順序: ① 非公式注意 → ② フィードバック → ③ 作者への導線 → ④ 利用規約
     st.divider()
+
+    # ① 非公式ファンメイドツール注意（アンバー背景）
     st.markdown(
         "<div style='text-align:center;font-size:0.8rem;color:#c8c0a0;line-height:1.8;"
         "background:rgba(200,160,64,0.12);border:1px solid rgba(200,160,64,0.35);"
@@ -1980,13 +1985,8 @@ def main() -> None:
         "</div>",
         unsafe_allow_html=True,
     )
-    st.markdown(
-        f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:8px 0 4px;'>{t('x_feedback')}</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
 
-    # ── フィードバックフォーム ───────────────────────────────
+    # ② フィードバックフォーム
     st.divider()
     st.markdown(
         f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
@@ -2002,6 +2002,18 @@ def main() -> None:
         use_container_width=True,
     )
 
+    # ③ 作者への導線（X フォロー ＋ Buy me a coffee）
+    st.divider()
+    st.markdown(
+        f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 8px;'>"
+        f"{t('author_section')}</p>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
+    # TODO: Buy me a coffee ボタンをここに追加予定
+
+    # ④ 利用規約・免責事項
+    st.divider()
     with st.expander("利用規約・免責事項"):
         st.markdown(
             """
