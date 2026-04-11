@@ -7,6 +7,7 @@ Steamゲーム布教まとめ画像（最大10本紹介）自動生成 Webアプ
 import html
 import io
 import os
+import re
 import random
 import datetime
 from collections import deque
@@ -168,10 +169,9 @@ _DEV_SAMPLE_GAMES: list[dict] = [
 # Windows / URL で使えない文字セット
 _FILENAME_INVALID = set('\\/: *?"<>|\t\n\r')
 
-# X (Twitter) ブランドカラーのリンクボタン HTML（.x-btn CSS は _GLOBAL_CSS で定義）
-_X_BUTTON_HTML = """
-<div style="text-align:center;margin:8px 0 20px;">
-  <p style="font-size:0.8rem;color:#aaa;margin:0 0 8px;">ご意見・ご要望は開発者のXまで</p>
+# X (Twitter) ブランドカラーのリンクボタン HTML（テキスト部は main() で t() を使って描画）
+_X_BUTTON_ICON_HTML = """
+<div style="text-align:center;margin:0 0 20px;">
   <a href="https://x.com/Yuki_HERO44" target="_blank" rel="noopener noreferrer" class="x-btn">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white">
       <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.258 5.629 5.906-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
@@ -258,6 +258,182 @@ section[data-testid="stMain"] > div > div { padding-bottom: 90px !important; }
 """
 
 
+# ═══════════════════════════════════════════════════════════
+#  i18n（多言語対応）
+# ═══════════════════════════════════════════════════════════
+
+TRANSLATIONS: dict[str, dict[str, str]] = {
+    "ja": {
+        # ヘッダー設定行
+        "heading_toggle":       "全体見出し",
+        "heading_toggle_help":  "OFF にすると上部の見出し帯が非表示になり、ゲームカードが少し大きくなります（常に10本・1920×1080 出力）",
+        "heading_placeholder":  "25文字以内",
+        "heading_default":      "2026年 神ゲー10選",
+        "heading_help":         "ポスター上部に大きな文字で表示されるタイトルです。空欄にすると見出しテキストなし（帯とアクセントラインは残ります）で生成されます。",
+        "heading_none_cap":     "見出しなし",
+        # 設定ポップオーバー
+        "num_games_popover":    "ゲーム数",
+        "num_games_label":      "ゲーム数",
+        "num_games_help":       "8本: カードが大きめ / 10本: カードが小さめ",
+        "design_popover":       "デザイン設定",
+        "theme_label":          "テーマ",
+        "bg_style_label":       "背景スタイル",
+        "bg_style_blur":        "ぼかし",
+        "bg_style_solid":       "単色",
+        "blur_label":           "ぼかし強度",
+        "blur_help":            "数値が大きいほどぼかしが強くなります",
+        "show_price_label":     "価格バッジを表示する",
+        # スロットエリア
+        "slots_header":         "ゲームスロット",
+        "slots_count_prefix":   "登録数",
+        "sort_btn":             "並び替え",
+        "sort_done_btn":        "並び替え完了",
+        "clear_all_btn":        "全クリア",
+        "sort_drag_info":       "ドラッグして順序を変更し、完了したら「並び替え完了」を押してください。",
+        "empty_slot_card":      "スロット {n:02d}",
+        # 生成ボタン周辺
+        "empty_slots_info":     "現在 **{filled}** 本のゲームが登録されています。未入力の枠 {n} 個は「空欄カード」として出力されます。",
+        "generate_btn":         "ポスターを生成する",
+        "regenerate_btn":       "再生成する",
+        "download_btn":         "PNG でダウンロード",
+        "preview_caption":      "プレビュー（実際は 1920×1080 で出力）",
+        "toast_done":           "ポスターが完成しました。ダウンロードボタンから保存できます。",
+        # 生成ステータス
+        "status_title":         "ポスターを生成しています...",
+        "status_fetch":         "Steam からゲーム画像を取得しています（{n} 本 / {total} スロット）...",
+        "status_compose":       "1920 × 1080 px の画像を合成しています...",
+        "status_encode":        "PNG ファイルに書き出しています...",
+        "status_error":         "生成に失敗しました",
+        # 編集ダイアログ
+        "slot_caption":         "スロット {n:02d}",
+        "reselect_caption":     "現在の選択: {title}　／　新しいゲームを検索して選択してください",
+        "search_ph":            "タイトル（日英）・AppID・Steam ストア URL を入力して Enter",
+        "search_help":          "Steam URL を貼り付けると自動でゲームを取得します。略称ではヒットしない場合があります。",
+        "search_btn":           "検索",
+        "warn_empty_query":     "キーワードを入力してください。",
+        "warn_age":             "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。ポスターには制限マークが表示されます。",
+        "warn_id_notfound":     "AppID {id} のゲーム情報が取得できませんでした。ID が正しいか確認してください。",
+        "warn_notfound":        "該当するゲームが見つかりませんでした。別のキーワードを試すか、しばらく待ってから再検索してください。",
+        "spin_appid":           "AppID {id} のデータを取得しています...",
+        "spin_search":          "「{q}」を検索しています...",
+        "spin_details":         "「{name}」のデータを取得しています...",
+        "spin_url":             "Steam URL からゲーム情報を取得しています...",
+        "confirm_game_btn":     "このゲームに決定",
+        "back_to_search_btn":   "検索に戻る",
+        "back_to_edit_btn":     "編集に戻る",
+        "close_btn":            "閉じる",
+        "cancel_btn":           "キャンセル",
+        "review_label":         "レビュー文",
+        "review_help":          "ポスターに約4行分の文章が収まります（見出しあり8本モード基準）。超える場合はフォントサイズが自動縮小されます。",
+        "save_btn":             "保存して閉じる",
+        "dlg_clear_btn":        "クリア",
+        "char_counter_tmpl":    "{n} / {max} 文字",
+        "over_limit_err":       "{max} 文字を超えています。文字数を減らしてから保存してください。",
+        "age_price_label":      "18+ / 詳細取得不可",
+        # スロットカード
+        "edit_btn":             "編集",
+        # 全クリアダイアログ
+        "clear_all_warning":    "登録されているすべてのゲームを削除します。この操作は取り消せません。",
+        "clear_all_confirm":    "すべて削除する",
+        # X ボタン
+        "x_feedback":           "ご意見・ご要望は開発者のXまで",
+        # DEV モード
+        "dev_expander":         "開発者ツール",
+        "dev_fill_btn":         "テストデータを入力",
+        # 言語トグル
+        "lang_toggle":          "EN",
+    },
+    "en": {
+        # Header row
+        "heading_toggle":       "Poster Title",
+        "heading_toggle_help":  "Turn OFF to hide the title bar and slightly enlarge game cards (always 10 games / 1920×1080).",
+        "heading_placeholder":  "Up to 25 characters",
+        "heading_default":      "Top 10 Games of 2026",
+        "heading_help":         "Large text shown at the top of the poster. Leave blank to generate without title text (bar and accent line remain).",
+        "heading_none_cap":     "No title",
+        # Settings popovers
+        "num_games_popover":    "# Games",
+        "num_games_label":      "# of Games",
+        "num_games_help":       "8 games: larger cards / 10 games: smaller cards",
+        "design_popover":       "Design",
+        "theme_label":          "Theme",
+        "bg_style_label":       "Background",
+        "bg_style_blur":        "Blur",
+        "bg_style_solid":       "Solid",
+        "blur_label":           "Blur Intensity",
+        "blur_help":            "Higher value = stronger blur",
+        "show_price_label":     "Show price badge",
+        # Slot area
+        "slots_header":         "Game Slots",
+        "slots_count_prefix":   "Registered",
+        "sort_btn":             "Reorder",
+        "sort_done_btn":        "Done Reordering",
+        "clear_all_btn":        "Clear All",
+        "sort_drag_info":       'Drag to reorder, then press "Done Reordering".',
+        "empty_slot_card":      "SLOT {n:02d}",
+        # Generate area
+        "empty_slots_info":     "**{filled}** game(s) registered. {n} empty slot(s) will appear as blank cards.",
+        "generate_btn":         "Generate Poster",
+        "regenerate_btn":       "Regenerate",
+        "download_btn":         "Download PNG",
+        "preview_caption":      "Preview (actual output: 1920×1080)",
+        "toast_done":           "Poster ready! Use the download button to save.",
+        # Generation status
+        "status_title":         "Generating poster...",
+        "status_fetch":         "Fetching game images from Steam ({n} / {total} slots)...",
+        "status_compose":       "Compositing 1920 × 1080 px canvas...",
+        "status_encode":        "Encoding PNG...",
+        "status_error":         "Generation failed",
+        # Edit dialog
+        "slot_caption":         "Slot {n:02d}",
+        "reselect_caption":     "Current: {title} — Search to select a different game",
+        "search_ph":            "Title, AppID, or Steam store URL — press Enter",
+        "search_help":          "Paste a Steam URL to auto-fetch the game. Abbreviations may not return results.",
+        "search_btn":           "Search",
+        "warn_empty_query":     "Please enter a keyword.",
+        "warn_age":             "This title is age-restricted; Steam API returned no details. A restriction icon will appear on the poster.",
+        "warn_id_notfound":     "Could not find game info for AppID {id}. Please verify the ID.",
+        "warn_notfound":        "No games found. Try a different keyword or wait before retrying.",
+        "spin_appid":           "Fetching data for AppID {id}...",
+        "spin_search":          'Searching for "{q}"...',
+        "spin_details":         'Fetching data for "{name}"...',
+        "spin_url":             "Fetching game info from Steam URL...",
+        "confirm_game_btn":     "Select This Game",
+        "back_to_search_btn":   "Back to Search",
+        "back_to_edit_btn":     "Back to Edit",
+        "close_btn":            "Close",
+        "cancel_btn":           "Cancel",
+        "review_label":         "Review",
+        "review_help":          "About 4 lines fit on the poster (8-game + title mode). Font auto-shrinks if text is too long.",
+        "save_btn":             "Save & Close",
+        "dlg_clear_btn":        "Clear",
+        "char_counter_tmpl":    "{n} / {max} chars",
+        "over_limit_err":       "Over {max} characters. Please shorten the text before saving.",
+        "age_price_label":      "18+ / Details unavailable",
+        # Slot card
+        "edit_btn":             "Edit",
+        # Clear all dialog
+        "clear_all_warning":    "This will remove all registered games. This cannot be undone.",
+        "clear_all_confirm":    "Delete All",
+        # X button
+        "x_feedback":           "Feedback & requests → developer's X",
+        # DEV mode
+        "dev_expander":         "Dev Tools",
+        "dev_fill_btn":         "Fill with Test Data",
+        # Language toggle
+        "lang_toggle":          "日本語",
+    },
+}
+
+
+def t(key: str, **kwargs) -> str:
+    """現在の言語設定でキーに対応する文字列を返す。フォーマット引数がある場合は format() を適用する。"""
+    lang = st.session_state.get("lang", "ja")
+    text = TRANSLATIONS.get(lang, TRANSLATIONS["ja"]).get(key) \
+           or TRANSLATIONS["ja"].get(key, key)
+    return text.format(**kwargs) if kwargs else text
+
+
 def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> None:
     """
     画面下部に固定表示するスティッキーボトムバーを st.markdown で描画する。
@@ -269,7 +445,7 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
     リラン後、main() の冒頭で `st.session_state["_sticky_generate"]` を検知して
     生成処理を実行する。
     """
-    btn_label  = "再生成する" if already_generated else "ポスターを生成する"
+    btn_label  = t("regenerate_btn") if already_generated else t("generate_btn")
     btn_icon   = "refresh"   if already_generated else "palette"
     pct        = int(filled / num_games * 100) if num_games > 0 else 0
     btn_bg     = "#555"            if filled == 0 else _PRIMARY_COLOR
@@ -808,6 +984,7 @@ def draw_card(
     bg_style: str,
     blur_r: int,
     layout: dict,
+    show_price: bool = True,
 ) -> None:
     """
     1 枚のゲームカードを canvas の所定グリッド位置に描画する。
@@ -857,38 +1034,37 @@ def draw_card(
     canvas.paste(thumb, (x0, y0))
 
     # ─── 価格バッジ（サムネ右下・半透明オーバーレイ） ────────
-    price_font = get_font(PRICE_FONT_PT)
-    price_text = game["price"]
-    price_bb   = draw.textbbox((0, 0), price_text, font=price_font)
-    price_tw   = price_bb[2] - price_bb[0]
-    price_th   = price_bb[3] - price_bb[1]
-    bx1 = x0 + THUMB_W - price_tw - PRICE_BADGE_PAD * 2 - PRICE_BADGE_EDGE
-    bx2 = x0 + THUMB_W - PRICE_BADGE_EDGE
-    by1 = y0 + L["card_h"] - price_th - PRICE_BADGE_PAD * 2 - PRICE_BADGE_EDGE
-    by2 = y0 + L["card_h"] - PRICE_BADGE_EDGE
-    badge_w = bx2 - bx1
-    badge_h = by2 - by1
-    # 半透明背景: クロップ → RGBA alpha_composite → RGB で貼り戻す
-    badge_bg = Image.new("RGBA", (badge_w, badge_h), (0, 0, 0, 185))
-    section  = canvas.crop((bx1, by1, bx2, by2)).convert("RGBA")
-    canvas.paste(Image.alpha_composite(section, badge_bg).convert("RGB"), (bx1, by1))
-    # 割引価格（例: "-50%  ¥1,200"）は割引率を SALE_GREEN、定価を accent で分割描画
-    if price_text.startswith("-") and "  " in price_text:
-        disc_part, rest_part = price_text.split("  ", 1)
-        prefix_w = int(draw.textlength(disc_part + "  ", font=price_font))
-        draw.text(
-            (bx1 + PRICE_BADGE_PAD - price_bb[0], by1 + PRICE_BADGE_PAD - price_bb[1]),
-            disc_part, font=price_font, fill=SALE_GREEN,
-        )
-        draw.text(
-            (bx1 + PRICE_BADGE_PAD - price_bb[0] + prefix_w, by1 + PRICE_BADGE_PAD - price_bb[1]),
-            rest_part, font=price_font, fill=theme["accent"],
-        )
-    else:
-        draw.text(
-            (bx1 + PRICE_BADGE_PAD - price_bb[0], by1 + PRICE_BADGE_PAD - price_bb[1]),
-            price_text, font=price_font, fill=theme["accent"],
-        )
+    if show_price:
+        price_font = get_font(PRICE_FONT_PT)
+        price_text = game["price"]
+        price_bb   = draw.textbbox((0, 0), price_text, font=price_font)
+        price_tw   = price_bb[2] - price_bb[0]
+        price_th   = price_bb[3] - price_bb[1]
+        bx1 = x0 + THUMB_W - price_tw - PRICE_BADGE_PAD * 2 - PRICE_BADGE_EDGE
+        bx2 = x0 + THUMB_W - PRICE_BADGE_EDGE
+        by1 = y0 + L["card_h"] - price_th - PRICE_BADGE_PAD * 2 - PRICE_BADGE_EDGE
+        by2 = y0 + L["card_h"] - PRICE_BADGE_EDGE
+        badge_w = bx2 - bx1
+        badge_h = by2 - by1
+        badge_bg = Image.new("RGBA", (badge_w, badge_h), (0, 0, 0, 185))
+        section  = canvas.crop((bx1, by1, bx2, by2)).convert("RGBA")
+        canvas.paste(Image.alpha_composite(section, badge_bg).convert("RGB"), (bx1, by1))
+        if price_text.startswith("-") and "  " in price_text:
+            disc_part, rest_part = price_text.split("  ", 1)
+            prefix_w = int(draw.textlength(disc_part + "  ", font=price_font))
+            draw.text(
+                (bx1 + PRICE_BADGE_PAD - price_bb[0], by1 + PRICE_BADGE_PAD - price_bb[1]),
+                disc_part, font=price_font, fill=SALE_GREEN,
+            )
+            draw.text(
+                (bx1 + PRICE_BADGE_PAD - price_bb[0] + prefix_w, by1 + PRICE_BADGE_PAD - price_bb[1]),
+                rest_part, font=price_font, fill=theme["accent"],
+            )
+        else:
+            draw.text(
+                (bx1 + PRICE_BADGE_PAD - price_bb[0], by1 + PRICE_BADGE_PAD - price_bb[1]),
+                price_text, font=price_font, fill=theme["accent"],
+            )
 
 
     tx = x0 + L["text_x_offset"]
@@ -923,6 +1099,7 @@ def generate_poster(
     blur_r: int,
     show_title: bool,
     num_games: int = MAX_GAMES,
+    show_price: bool = True,
 ) -> Image.Image:
     """
     1920 × 1080 の Steam 布教まとめポスターを生成して PIL Image として返す。
@@ -965,7 +1142,7 @@ def generate_poster(
     draw.rectangle([div_x0, div_y0, div_x1, div_y1], fill=theme["accent"])
 
     for i, game in enumerate(games[: layout["num_games"]]):
-        draw_card(canvas, draw, i, game, theme, bg_style, blur_r, layout)
+        draw_card(canvas, draw, i, game, theme, bg_style, blur_r, layout, show_price)
 
     # ── 行間横罫線（各行の下端に描画。最終行・フッター直前は除く）────────
     for row in range(layout["rows"] - 1):
@@ -1036,6 +1213,54 @@ def init_session() -> None:
         st.session_state["reorder_mode"] = False
     if "num_games_sel" not in st.session_state:
         st.session_state["num_games_sel"] = 8
+    if "lang" not in st.session_state:
+        st.session_state["lang"] = "ja"
+    if "show_price" not in st.session_state:
+        st.session_state["show_price"] = True
+
+
+# ═══════════════════════════════════════════════════════════
+#  全スロットクリア確認ダイアログ
+# ═══════════════════════════════════════════════════════════
+
+def _clear_all_body() -> None:
+    """全スロットクリア確認ダイアログの本体（言語に依存しない共通ロジック）"""
+    st.warning(t("clear_all_warning"), icon=":material/warning:")
+    col_yes, col_no = st.columns(2)
+    with col_yes:
+        if st.button(t("clear_all_confirm"), key="dlg_clear_all_yes",
+                     icon=":material/delete_forever:", type="primary",
+                     use_container_width=True):
+            st.session_state.games = [None] * MAX_GAMES
+            st.session_state.search_results = [[] for _ in range(MAX_GAMES)]
+            for idx in range(MAX_GAMES):
+                for k in [f"dlg_review_{idx}", f"dlg_q_{idx}", f"dlg_search_back_{idx}"]:
+                    st.session_state.pop(k, None)
+            st.session_state.pop("_confirm_clear_all", None)
+            st.rerun()
+    with col_no:
+        if st.button(t("cancel_btn"), key="dlg_clear_all_no",
+                     icon=":material/close:", use_container_width=True):
+            st.session_state.pop("_confirm_clear_all", None)
+            st.rerun()
+
+
+@st.dialog("全スロットをクリア")
+def _clear_all_dialog_ja() -> None:
+    _clear_all_body()
+
+
+@st.dialog("Clear All Slots")
+def _clear_all_dialog_en() -> None:
+    _clear_all_body()
+
+
+def clear_all_dialog() -> None:
+    """言語に応じたダイアログを呼び出す"""
+    if st.session_state.get("lang", "ja") == "en":
+        _clear_all_dialog_en()
+    else:
+        _clear_all_dialog_ja()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1043,91 +1268,116 @@ def init_session() -> None:
 # ═══════════════════════════════════════════════════════════
 
 @st.dialog("ゲームを編集", width="large")
+def _edit_dialog_ja(i: int) -> None:
+    _edit_dialog_body(i)
+
+
+@st.dialog("Edit Game", width="large")
+def _edit_dialog_en(i: int) -> None:
+    _edit_dialog_body(i)
+
+
 def edit_dialog(i: int) -> None:
+    """言語設定に応じた編集ダイアログを呼び出す"""
+    if st.session_state.get("lang", "ja") == "en":
+        _edit_dialog_en(i)
+    else:
+        _edit_dialog_ja(i)
+
+
+def _edit_dialog_body(i: int) -> None:
     """
     スロット i のゲーム検索・選択・テキスト入力をポップアップで行う。
-    st.rerun() を呼んだ時点でダイアログが閉じる。
 
     フェーズ管理:
     - 検索フェーズ: ゲーム未選択 OR ユーザーが「検索に戻る」を押した
-        → 検索フォーム + 検索結果のみ表示
     - 編集フェーズ: ゲーム選択済み
-        → 2カラム（左:画像 / 右:入力フォーム）のみ表示
     フェーズ切替フラグ: session_state[f"dlg_search_back_{i}"]
+
+    入力に対応: テキスト検索 / AppID 直接入力 / Steam ストア URL
     """
     game            = st.session_state.games[i]
     in_search_phase = game is None or f"dlg_search_back_{i}" in st.session_state
 
-    st.caption(f"スロット {i + 1:02d}")
+    st.caption(t("slot_caption", n=i + 1))
 
     # ════════════════════════════════════════════════════════
     # 検索フェーズ
     # ════════════════════════════════════════════════════════
     if in_search_phase:
         if game is not None:
-            # 選び直し中: 現在の選択をサブテキストで案内
-            st.caption(f"現在の選択: {game['title']}　／　新しいゲームを検索して選択してください")
+            st.caption(t("reselect_caption", title=game["title"]))
         st.divider()
 
-        # ── 検索フォーム（Enter キー or ボタンで送信）────────
         with st.form(key=f"dlg_form_{i}", border=False):
             col_q, col_btn = st.columns([5, 1])
             with col_q:
                 st.text_input(
-                    "ゲームを検索",
+                    t("search_btn"),
                     key=f"dlg_q_{i}",
-                    placeholder="タイトル（日英）または AppID（例: 570）を入力して Enter",
+                    placeholder=t("search_ph"),
                     label_visibility="collapsed",
-                    help="Steam上のタイトル（日本語・英語）で検索できます。略称ではヒットしない場合があります。",
+                    help=t("search_help"),
                 )
             with col_btn:
                 search_clicked = st.form_submit_button(
-                    "検索", icon=":material/search:", use_container_width=True,
+                    t("search_btn"), icon=":material/search:", use_container_width=True,
                 )
 
         if search_clicked:
             q = st.session_state.get(f"dlg_q_{i}", "").strip()
             if not q:
-                st.warning("キーワードを入力してください。")
-            elif q.isdigit():
-                # AppID 直接入力
-                app_id = int(q)
-                with st.spinner(f"AppID {app_id} のデータを取得しています..."):
-                    details = get_game_details(app_id)
-                if details.get("age_restricted"):
-                    st.warning(
-                        "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
-                        "ポスターには制限マークが表示されます。",
-                        icon=":material/block:",
-                    )
-                elif not details.get("title"):
-                    st.warning(
-                        f"AppID {app_id} のゲーム情報が取得できませんでした。"
-                        "ID が正しいか確認してください。",
-                        icon=":material/error:",
-                    )
-                st.session_state.games[i] = {
-                    "app_id":         app_id,
-                    "title":          details.get("title") or f"AppID {app_id}",
-                    "image_url":      details.get("image_url"),
-                    "price":          details.get("price", "不明"),
-                    "review":         "",
-                    "age_restricted": details.get("age_restricted", False),
-                }
-                st.session_state[f"dlg_review_{i}"]  = ""
-                st.session_state.search_results[i]   = []
-                st.session_state.pop(f"dlg_search_back_{i}", None)
+                st.warning(t("warn_empty_query"))
             else:
-                # 通常のテキスト検索
-                with st.spinner(f"「{q}」を検索しています..."):
-                    results = search_steam(q)
-                st.session_state.search_results[i] = results
-                st.session_state.pop(f"dlg_sel_{i}", None)
-                if not results:
-                    st.warning(
-                        "該当するゲームが見つかりませんでした。"
-                        "別のキーワードを試すか、しばらく待ってから再検索してください。"
-                    )
+                # Steam ストア URL から AppID を自動抽出
+                url_match = re.search(r"steampowered\.com/app/(\d+)", q)
+                if url_match:
+                    app_id = int(url_match.group(1))
+                    with st.spinner(t("spin_url")):
+                        details = get_game_details(app_id)
+                    if details.get("age_restricted"):
+                        st.warning(t("warn_age"), icon=":material/block:")
+                    elif not details.get("title"):
+                        st.warning(t("warn_id_notfound", id=app_id), icon=":material/error:")
+                    st.session_state.games[i] = {
+                        "app_id":         app_id,
+                        "title":          details.get("title") or f"AppID {app_id}",
+                        "image_url":      details.get("image_url"),
+                        "price":          details.get("price", "不明"),
+                        "review":         "",
+                        "age_restricted": details.get("age_restricted", False),
+                    }
+                    st.session_state[f"dlg_review_{i}"]  = ""
+                    st.session_state.search_results[i]   = []
+                    st.session_state.pop(f"dlg_search_back_{i}", None)
+                elif q.isdigit():
+                    # AppID 直接入力
+                    app_id = int(q)
+                    with st.spinner(t("spin_appid", id=app_id)):
+                        details = get_game_details(app_id)
+                    if details.get("age_restricted"):
+                        st.warning(t("warn_age"), icon=":material/block:")
+                    elif not details.get("title"):
+                        st.warning(t("warn_id_notfound", id=app_id), icon=":material/error:")
+                    st.session_state.games[i] = {
+                        "app_id":         app_id,
+                        "title":          details.get("title") or f"AppID {app_id}",
+                        "image_url":      details.get("image_url"),
+                        "price":          details.get("price", "不明"),
+                        "review":         "",
+                        "age_restricted": details.get("age_restricted", False),
+                    }
+                    st.session_state[f"dlg_review_{i}"]  = ""
+                    st.session_state.search_results[i]   = []
+                    st.session_state.pop(f"dlg_search_back_{i}", None)
+                else:
+                    # テキスト検索
+                    with st.spinner(t("spin_search", q=q)):
+                        results = search_steam(q)
+                    st.session_state.search_results[i] = results
+                    st.session_state.pop(f"dlg_sel_{i}", None)
+                    if not results:
+                        st.warning(t("warn_notfound"))
 
         # ── 検索結果 + サムネプレビュー ──────────────────────
         results = st.session_state.search_results[i]
@@ -1139,13 +1389,13 @@ def edit_dialog(i: int) -> None:
             col_drop, col_prev = st.columns([3, 2])
             with col_drop:
                 sel_key = st.selectbox(
-                    "候補",
+                    "candidates",
                     list(options_map.keys()),
                     key=f"dlg_sel_{i}",
                     label_visibility="collapsed",
                 )
                 confirm_clicked = st.button(
-                    "このゲームに決定", key=f"dlg_confirm_{i}",
+                    t("confirm_game_btn"), key=f"dlg_confirm_{i}",
                     icon=":material/check_circle:",
                 )
             with col_prev:
@@ -1158,14 +1408,10 @@ def edit_dialog(i: int) -> None:
 
             if confirm_clicked:
                 chosen = options_map[sel_key]
-                with st.spinner(f"「{chosen['name']}」のデータを取得しています..."):
+                with st.spinner(t("spin_details", name=chosen["name"])):
                     details = get_game_details(chosen["app_id"])
                 if details.get("age_restricted"):
-                    st.warning(
-                        "このタイトルは年齢制限コンテンツのため Steam API から詳細を取得できませんでした。"
-                        "ポスターには制限マークが表示されます。",
-                        icon=":material/block:",
-                    )
+                    st.warning(t("warn_age"), icon=":material/block:")
                 st.session_state.games[i] = {
                     "app_id":         chosen["app_id"],
                     "title":          details["title"] or chosen["name"],
@@ -1180,22 +1426,20 @@ def edit_dialog(i: int) -> None:
 
         # ── フッターボタン ────────────────────────────────────
         st.divider()
-        # 既存ゲームがある場合は編集フェーズへ戻れるボタンを用意
         if game is not None:
             col_back, col_close = st.columns([1, 1])
             with col_back:
-                if st.button("編集に戻る", key=f"dlg_editback_{i}",
+                if st.button(t("back_to_edit_btn"), key=f"dlg_editback_{i}",
                              icon=":material/arrow_back:", use_container_width=True):
                     st.session_state.pop(f"dlg_search_back_{i}", None)
                     st.rerun()
             with col_close:
-                if st.button("キャンセル", key=f"dlg_close_{i}",
+                if st.button(t("cancel_btn"), key=f"dlg_close_{i}",
                              icon=":material/close:", use_container_width=True):
                     del st.session_state["editing_slot"]
                     st.rerun()
         else:
-            if st.button("閉じる", key=f"dlg_close_{i}",
-                         icon=":material/close:"):
+            if st.button(t("close_btn"), key=f"dlg_close_{i}", icon=":material/close:"):
                 del st.session_state["editing_slot"]
                 st.rerun()
 
@@ -1203,16 +1447,13 @@ def edit_dialog(i: int) -> None:
     # 編集フェーズ
     # ════════════════════════════════════════════════════════
     else:
-        # ── 選び直しボタン ───────────────────────────────────
-        if st.button("検索に戻る", key=f"dlg_back_{i}",
-                     icon=":material/search:"):
+        if st.button(t("back_to_search_btn"), key=f"dlg_back_{i}", icon=":material/search:"):
             st.session_state[f"dlg_search_back_{i}"] = True
             st.session_state.search_results[i] = []
             st.rerun()
 
         st.divider()
 
-        # ── 2カラム: 左=画像(1) / 右=タイトル・価格・入力フォーム(2) ──
         col_img, col_form = st.columns([1, 2])
 
         with col_img:
@@ -1223,20 +1464,18 @@ def edit_dialog(i: int) -> None:
 
         with col_form:
             st.markdown(f"### {game['title']}")
-            price_raw = "18+ / 詳細取得不可" if game.get("age_restricted") else game["price"]
+            price_raw = t("age_price_label") if game.get("age_restricted") else game["price"]
             st.markdown(_price_badge_html(price_raw), unsafe_allow_html=True)
 
             review_now = st.text_area(
-                "レビュー文",
+                t("review_label"),
                 height=160,
                 key=f"dlg_review_{i}",
-                help="ポスターに約4行分の文章が収まります（見出しあり8本モード基準）。超える場合はフォントサイズが自動縮小されます。",
+                help=t("review_help"),
             )
             review_len = len(review_now or "")
 
             # ── 文字数上限（利用可能エリアに対して REVIEW_FONT_PT を基準に算出） ──
-            # 計算式: area_h * area_w / FONT_PT² ≈ 収容行数 × 行あたり文字数
-            # 見出しあり8本=124 / 見出しあり10本=94 / 見出しなし8本=138 / 見出しなし10本=105
             _show_title  = st.session_state.get("show_title", True)
             _num_g       = st.session_state.get("num_games_sel", 8)
             _L           = compute_layout(_show_title, _num_g)
@@ -1245,36 +1484,33 @@ def edit_dialog(i: int) -> None:
             over_limit = review_len > max_chars
             counter_id = f"dlg-rc-{i}"
             color_init = "#e74c3c" if over_limit else "#aaa"
+            counter_text = t("char_counter_tmpl", n=review_len, max=max_chars)
             st.markdown(
                 f"<p id='{counter_id}' style='text-align:right;font-size:0.8rem;"
-                f"color:{color_init};margin-top:-12px'>{review_len} / {max_chars} 文字</p>",
+                f"color:{color_init};margin-top:-12px'>{counter_text}</p>",
                 unsafe_allow_html=True,
             )
             if over_limit:
-                st.error(f"{max_chars} 文字を超えています。文字数を減らしてから保存してください。")
+                st.error(t("over_limit_err", max=max_chars))
 
-            # ── リアルタイムカウンター（JS） ─────────────────
+            # ── リアルタイムカウンター（JS）─ダイアログ内の唯一の textarea を対象 ──
+            lang_suffix = t("char_counter_tmpl", n=0, max=0).split("0")[2].strip()
             components.html(
                 f"""<script>
 (function(){{
   var CID = '{counter_id}';
   var MAX = {max_chars};
+  var SUFFIX = ' / {max_chars} {lang_suffix}';
   function attach() {{
     var doc = window.parent.document;
-    var ta = null;
-    doc.querySelectorAll('[data-testid="stTextArea"] textarea').forEach(function(el) {{
-      var wrap = el.closest('[data-testid="stTextArea"]');
-      if (!wrap) return;
-      var lbl = wrap.querySelector('label');
-      if (lbl && lbl.textContent.trim().startsWith('\u30ec\u30d3\u30e5\u30fc\u6587')) ta = el;
-    }});
+    var ta = doc.querySelector('[data-testid="stTextArea"] textarea');
     if (!ta) return false;
     if (ta._rt) ta.removeEventListener('input', ta._rt);
     ta._rt = function() {{
       var n = this.value.length;
-      var c = window.parent.document.getElementById(CID);
+      var c = doc.getElementById(CID);
       if (!c) return;
-      c.textContent = n + ' / {max_chars} \u6587\u5b57';
+      c.textContent = n + SUFFIX;
       c.style.color = n > MAX ? '#e74c3c' : '#aaa';
     }};
     ta.addEventListener('input', ta._rt);
@@ -1296,7 +1532,7 @@ def edit_dialog(i: int) -> None:
         st.divider()
         col_save, col_clear, col_cancel = st.columns([3, 2, 2])
         with col_save:
-            if st.button("保存して閉じる", key=f"dlg_save_{i}",
+            if st.button(t("save_btn"), key=f"dlg_save_{i}",
                          icon=":material/save:",
                          type="primary", use_container_width=True,
                          disabled=over_limit):
@@ -1305,7 +1541,7 @@ def edit_dialog(i: int) -> None:
                 del st.session_state["editing_slot"]
                 st.rerun()
         with col_clear:
-            if st.button("クリア", key=f"dlg_clear_{i}",
+            if st.button(t("dlg_clear_btn"), key=f"dlg_clear_{i}",
                          icon=":material/delete:",
                          use_container_width=True):
                 st.session_state.games[i] = None
@@ -1315,7 +1551,7 @@ def edit_dialog(i: int) -> None:
                 del st.session_state["editing_slot"]
                 st.rerun()
         with col_cancel:
-            if st.button("キャンセル", key=f"dlg_cancel_{i}",
+            if st.button(t("cancel_btn"), key=f"dlg_cancel_{i}",
                          icon=":material/close:",
                          use_container_width=True):
                 st.session_state.pop(f"dlg_search_back_{i}", None)
@@ -1371,12 +1607,12 @@ def render_slot_card(i: int, disabled: bool = False) -> None:
             # 空スロットのプレースホルダ
             st.markdown(
                 f"<div style='text-align:center;padding:20px 0;"
-                f"color:#555;font-size:0.85rem;'>スロット {i + 1:02d}</div>",
+                f"color:#555;font-size:0.85rem;'>{t('empty_slot_card', n=i+1)}</div>",
                 unsafe_allow_html=True,
             )
 
         if st.button(
-            "編集", key=f"btn_edit_{i}",
+            t("edit_btn"), key=f"btn_edit_{i}",
             icon=":material/edit:",
             use_container_width=True,
             disabled=disabled,
@@ -1406,6 +1642,15 @@ def main() -> None:
         "<h1 style='text-align:center;'>SteamPosterMaker</h1>",
         unsafe_allow_html=True,
     )
+    # ── 言語トグル（右上） ───────────────────────────────────
+    col_spacer, col_lang = st.columns([10, 1])
+    with col_lang:
+        if st.button(
+            t("lang_toggle"), key="lang_toggle_btn",
+            icon=":material/language:", use_container_width=True,
+        ):
+            st.session_state["lang"] = "en" if st.session_state.get("lang", "ja") == "ja" else "ja"
+            st.rerun()
 
     # ── レイアウト・進捗を先に計算 ──────────────────────────────
     show_title        = st.session_state.get("show_title", True)
@@ -1427,9 +1672,9 @@ def main() -> None:
 
     # ── 開発者ツール（DEV_MODE=True のときのみ表示）────────────────
     if DEV_MODE:
-        with st.expander("開発者ツール", icon=":material/science:"):
+        with st.expander(t("dev_expander"), icon=":material/science:"):
             if st.button(
-                "テストデータを入力",
+                t("dev_fill_btn"),
                 key="dev_fill_btn",
                 icon=":material/science:",
                 use_container_width=True,
@@ -1458,55 +1703,61 @@ def main() -> None:
     col_tog, col_ttl, col_pop = st.columns([1, 3, 1])
     with col_tog:
         show_title = st.toggle(
-            "全体見出し",
+            t("heading_toggle"),
             value=True,
             key="show_title",
-            help="OFF にすると上部の見出し帯が非表示になり、ゲームカードが少し大きくなります（常に10本・1920×1080 出力）",
+            help=t("heading_toggle_help"),
         )
     with col_ttl:
         if show_title:
             poster_title = st.text_input(
-                "見出しテキスト",
-                value="2026年 神ゲー10選",
+                t("heading_toggle"),
+                value=t("heading_default"),
                 max_chars=25,
-                placeholder="25文字以内",
+                placeholder=t("heading_placeholder"),
                 key="poster_title",
                 label_visibility="collapsed",
-                help="ポスター上部に大きな文字で表示されるタイトルです。空欄にすると見出しテキストなし（帯とアクセントラインは残ります）で生成されます。",
+                help=t("heading_help"),
             )
         else:
-            # トグルOFF時は入力欄を非表示にして説明テキストだけ表示
-            # session_state の値は保持されるため、ON に戻すと入力内容が復元される
             poster_title = st.session_state.get("poster_title", "")
-            st.caption("見出しなし")
+            st.caption(t("heading_none_cap"))
     with col_pop:
-        with st.popover("ゲーム数", icon=":material/grid_view:", use_container_width=True):
+        with st.popover(t("num_games_popover"), icon=":material/grid_view:", use_container_width=True):
             st.radio(
-                "ゲーム数",
+                t("num_games_label"),
                 [8, 10],
                 horizontal=True,
                 key="num_games_sel",
-                help="8本: カードが大きめ / 10本: カードが小さめ",
+                help=t("num_games_help"),
             )
-            st.caption(f"カード {layout['card_w']} × {layout['card_h']} px")
+            st.caption(f"Card {layout['card_w']} × {layout['card_h']} px")
 
     st.divider()
 
     # ── ゲームスロット（2列グリッド） ───────────────────────
     # filled / already_generated はページ冒頭で先行計算済み
-    col_hdr, col_cnt, col_sort = st.columns([3, 1, 1], vertical_alignment="center")
+    col_hdr, col_cnt, col_clear, col_sort = st.columns([3, 1, 1, 1], vertical_alignment="center")
     with col_hdr:
-        st.subheader("ゲームスロット")
+        st.subheader(t("slots_header"))
     with col_cnt:
         st.markdown(
             f"<p style='margin:0;text-align:right;white-space:nowrap;'>"
-            f"<span style='font-size:0.8rem;color:#aaa;margin-right:6px;'>登録数</span>"
+            f"<span style='font-size:0.8rem;color:#aaa;margin-right:6px;'>{t('slots_count_prefix')}</span>"
             f"<span style='font-size:1.15rem;font-weight:bold;'>{filled} / {num_games}</span>"
             f"</p>",
             unsafe_allow_html=True,
         )
+    with col_clear:
+        if st.button(
+            t("clear_all_btn"), key="btn_clear_all",
+            icon=":material/delete_sweep:", use_container_width=True,
+            disabled=filled == 0,
+        ):
+            st.session_state["_confirm_clear_all"] = True
+            st.rerun()
     with col_sort:
-        sort_label = "並び替え完了" if st.session_state["reorder_mode"] else "並び替え"
+        sort_label = t("sort_done_btn") if st.session_state["reorder_mode"] else t("sort_btn")
         sort_icon  = ":material/done_all:" if st.session_state["reorder_mode"] else ":material/swap_vert:"
         sort_type  = "primary"   if st.session_state["reorder_mode"] else "secondary"
         if st.button(sort_label, icon=sort_icon, use_container_width=True, type=sort_type):
@@ -1516,7 +1767,7 @@ def main() -> None:
     if st.session_state["reorder_mode"]:
         # ── 並び替えモード ────────────────────────────────────
         st.info(
-            "ドラッグして順序を変更し、完了したら「並び替え完了」を押してください。",
+            t("sort_drag_info"),
             icon=":material/swap_vert:",
         )
 
@@ -1559,15 +1810,14 @@ def main() -> None:
     st.markdown('<div id="poster-gen-sentinel"></div>', unsafe_allow_html=True)
     if filled > 0 and filled < num_games:
         st.info(
-            f"現在 **{filled}** 本のゲームが登録されています。"
-            f"未入力の枠 {num_games - filled} 個は「空欄カード」として出力されます。",
+            t("empty_slots_info", filled=filled, n=num_games - filled),
             icon=":material/info:",
         )
     col_design, col_gen = st.columns([1, 2])
     with col_design:
-        with st.popover("デザイン設定", icon=":material/settings:", use_container_width=True):
+        with st.popover(t("design_popover"), icon=":material/settings:", use_container_width=True):
             theme_name = st.selectbox(
-                "テーマ",
+                t("theme_label"),
                 list(THEMES.keys()),
                 key="theme_sel",
             )
@@ -1577,29 +1827,30 @@ def main() -> None:
                 f"border-radius:5px;background:rgb{color};margin-right:5px;"
                 f"border:1px solid #555;vertical-align:middle'></span>"
                 for label, color in [
-                    ("背景", _t["bg"]),
-                    ("アクセント", _t["accent"]),
-                    ("カード", _t["card_bg"]),
+                    ("bg", _t["bg"]),
+                    ("accent", _t["accent"]),
+                    ("card", _t["card_bg"]),
                 ]
             )
             st.markdown(_swatch_html, unsafe_allow_html=True)
             bg_style = st.radio(
-                "背景スタイル",
+                t("bg_style_label"),
                 ["blur", "solid"],
-                format_func=lambda x: "ぼかし" if x == "blur" else "単色",
+                format_func=lambda x: t("bg_style_blur") if x == "blur" else t("bg_style_solid"),
                 horizontal=True,
                 key="bg_style_sel",
             )
             blur_r = 0
             if bg_style == "blur":
                 blur_r = st.slider(
-                    "ぼかし強度", min_value=1, max_value=40, value=15,
+                    t("blur_label"), min_value=1, max_value=40, value=15,
                     key="blur_r_val",
-                    help="数値が大きいほどぼかしが強くなります",
+                    help=t("blur_help"),
                 )
+            st.toggle(t("show_price_label"), value=True, key="show_price")
     with col_gen:
         generate_btn = st.button(
-            "再生成する" if already_generated else "ポスターを生成する",
+            t("regenerate_btn") if already_generated else t("generate_btn"),
             icon=":material/refresh:" if already_generated else ":material/palette:",
             type="primary",
             use_container_width=True,
@@ -1608,33 +1859,23 @@ def main() -> None:
 
     if generate_btn or _sticky_triggered:
         games_slice = st.session_state.games[:num_games]
+        show_price  = st.session_state.get("show_price", True)
 
-        # 前回の巨大画像バイト列を事前に解放し、新旧データのメモリ二重保持を防ぐ
         for _key in ("last_poster_bytes", "last_poster_meta"):
             st.session_state.pop(_key, None)
 
-        # gen_status.update(state="complete") はストリーミングデルタとして即送信されるため、
-        # 画像レンダリング（最終フルステート）より先にブラウザへ届き、タイムラグが生じる。
-        # そのため成功時は update を呼ばず with 終了時の自動完了に委ねる。
-        # toast は session_state フラグ経由で st.image の直後に移動し同タイミングに揃える。
-        with st.status("ポスターを生成しています...", expanded=True) as gen_status:
+        with st.status(t("status_title"), expanded=True) as gen_status:
             try:
-                # Step 1: Steam CDN から各ゲームのヘッダー画像をフェッチ（キャッシュ優先）
-                # 年齢制限ゲームは CDN 画像が取得できないため除外する
                 fetchable = [
                     g for g in games_slice
                     if g is not None and not g.get("age_restricted")
                 ]
                 if fetchable:
-                    st.write(
-                        f"Steam からゲーム画像を取得しています"
-                        f"（{len(fetchable)} 本 / {num_games} スロット）..."
-                    )
+                    st.write(t("status_fetch", n=len(fetchable), total=num_games))
                     for g in fetchable:
                         _fetch_raw_image(g["image_url"])
 
-                # Step 2: Pillow で 1920×1080 px に合成
-                st.write("1920 × 1080 px の画像を合成しています...")
+                st.write(t("status_compose"))
                 poster = generate_poster(
                     games_slice,
                     poster_title,
@@ -1643,13 +1884,13 @@ def main() -> None:
                     blur_r,
                     show_title,
                     num_games,
+                    show_price,
                 )
 
-                # Step 3: PNG エンコード
-                st.write("PNG ファイルに書き出しています...")
+                st.write(t("status_encode"))
                 buf = io.BytesIO()
                 poster.save(buf, format="PNG", compress_level=1)
-                poster.close()   # Pillow Image オブジェクトを即時解放（PNG 書き出し完了後は不要）
+                poster.close()
                 st.session_state["last_poster_bytes"] = buf.getvalue()
                 date_str   = datetime.date.today().strftime("%Y%m%d")
                 pick_label = f"{num_games}pick"
@@ -1658,31 +1899,25 @@ def main() -> None:
                 st.session_state["last_poster_meta"] = {
                     "filename": "_".join(parts) + ".png",
                 }
-                # フラグを立てて、画像表示後に toast を出す（with ブロック内では呼ばない）
                 st.session_state["_poster_complete"] = True
             except Exception as e:
-                gen_status.update(label="生成に失敗しました", state="error")
-                st.error(f"詳細: {e}")
+                gen_status.update(label=t("status_error"), state="error")
+                st.error(f"{e}")
 
-    # 生成済みポスターを表示（設定変更後も保持）
     if "last_poster_bytes" in st.session_state:
         poster_bytes = st.session_state["last_poster_bytes"]
         meta         = st.session_state["last_poster_meta"]
-        st.image(poster_bytes, caption="プレビュー（実際は 1920×1080 で出力）", use_container_width=True)
+        st.image(poster_bytes, caption=t("preview_caption"), use_container_width=True)
         st.download_button(
-            label="PNG でダウンロード",
+            label=t("download_btn"),
             icon=":material/download:",
             data=poster_bytes,
             file_name=meta["filename"],
             mime="image/png",
             use_container_width=True,
         )
-        # 画像が描画されてから toast を出す
         if st.session_state.pop("_poster_complete", False):
-            st.toast(
-                "ポスターが完成しました。ダウンロードボタンから保存できます。",
-                icon=":material/check_circle:",
-            )
+            st.toast(t("toast_done"), icon=":material/check_circle:")
 
     # ── 免責事項 ────────────────────────────────────────────
     st.divider()
@@ -1694,7 +1929,11 @@ def main() -> None:
         "</p>",
         unsafe_allow_html=True,
     )
-    st.markdown(_X_BUTTON_HTML, unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:8px 0 4px;'>{t('x_feedback')}</p>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
     with st.expander("利用規約・免責事項"):
         st.markdown(
             """
@@ -1729,6 +1968,10 @@ def main() -> None:
             edit_dialog(slot_idx)
         else:
             del st.session_state["editing_slot"]
+
+    # 全クリア確認ダイアログ
+    if st.session_state.get("_confirm_clear_all"):
+        clear_all_dialog()
 
 
 if __name__ == "__main__":
