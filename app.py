@@ -203,7 +203,7 @@ div[data-testid='stColumn'] > div[data-testid='stVerticalBlock'] { gap: 2px; }
 section[data-testid="stMain"] { margin-left: 0 !important; }
 
 /* ページ下部にスティッキーバーの高さ分の余白を確保（コンテンツが隠れないように） */
-section[data-testid="stMain"] > div > div { padding-bottom: 90px !important; }
+section[data-testid="stMain"] > div > div { padding-bottom: 64px !important; }
 
 /* ── X ブランドリンクボタン ── */
 .x-btn {
@@ -1885,7 +1885,7 @@ def main() -> None:
       var hidden = entries[0].isIntersecting;
       bar.style.opacity       = hidden ? '0' : '1';
       bar.style.pointerEvents = hidden ? 'none' : 'auto';
-    }, { rootMargin: '0px' });
+    }, { rootMargin: '9999px 0px 0px 0px' });
     bar._spmIO = io;
     io.observe(sen);
     return true;
