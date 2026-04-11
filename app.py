@@ -533,30 +533,6 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
 </div>
 <link rel="stylesheet"
   href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
-<script>
-(function(){{
-  /* 生成ボタンエリアが見えているときはスティッキーバーを隠す */
-  var BAR = 'spm-sticky-bar';
-  var SEN = 'poster-gen-sentinel';
-  function setup() {{
-    var bar = document.getElementById(BAR);
-    var sen = document.getElementById(SEN);
-    if (!bar || !sen) return false;
-    var io = new IntersectionObserver(function(entries) {{
-      bar.style.display = entries[0].isIntersecting ? 'none' : 'flex';
-    }}, {{ rootMargin: '0px' }});
-    io.observe(sen);
-    return true;
-  }}
-  /* sentinel はページ後半に挿入されるため MutationObserver で待機 */
-  if (!setup()) {{
-    var mo = new MutationObserver(function() {{
-      if (setup()) mo.disconnect();
-    }});
-    mo.observe(document.body, {{ childList: true, subtree: true }});
-  }}
-}})();
-</script>
 """,
         unsafe_allow_html=True,
     )
@@ -1843,8 +1819,42 @@ def main() -> None:
     st.divider()
 
     # ── ポスター生成 ────────────────────────────────────────
-    # sentinel が画面内に入ったら、スティッキーバーの IntersectionObserver が自動で非表示にする
+    # sentinel が画面内に入ったら、スティッキーバーを非表示にする
+    # components.html() はリラン毎にiframeが再実行されるため、st.markdown<script>より確実
     st.markdown('<div id="poster-gen-sentinel"></div>', unsafe_allow_html=True)
+    components.html(
+        """<script>
+(function() {
+  var BAR_ID = 'spm-sticky-bar';
+  var SEN_ID = 'poster-gen-sentinel';
+  var doc    = window.parent.document;
+
+  function setup() {
+    var bar = doc.getElementById(BAR_ID);
+    var sen = doc.getElementById(SEN_ID);
+    if (!bar || !sen) return false;
+    /* 既存 Observer を破棄して重複登録を防ぐ */
+    if (bar._spmIO) { bar._spmIO.disconnect(); }
+    var io = new IntersectionObserver(function(entries) {
+      bar.style.display = entries[0].isIntersecting ? 'none' : 'flex';
+    }, { rootMargin: '0px' });
+    bar._spmIO = io;
+    io.observe(sen);
+    return true;
+  }
+
+  /* sentinel はコンテンツ中頃に挿入されるため、未登録なら MutationObserver で待機 */
+  if (!setup()) {
+    var mo = new MutationObserver(function() {
+      if (setup()) mo.disconnect();
+    });
+    mo.observe(doc.body, { childList: true, subtree: true });
+  }
+})();
+</script>""",
+        height=0,
+        scrolling=False,
+    )
     if filled > 0 and filled < num_games:
         st.info(
             t("empty_slots_info", filled=filled, n=num_games - filled),
