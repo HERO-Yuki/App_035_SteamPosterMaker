@@ -469,7 +469,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "disclaimer_trademark": "Steam の商標・ロゴは Valve Corporation の財産です。",
         "feedback_header":      "フィードバック",
         "feedback_body":        "バグ報告や機能のご要望はこちら",
-        "feedback_btn":         "要望・バグ報告フォーム",
+        "feedback_note":        "すべてのご要望にお応えできるとは限りませんが、参考にさせていただきます。",
+        "feedback_btn":         "要望・バグ報告\u200bフォーム",
         # 利用規約エクスパンダー
         "tos_expander":         "利用規約・免責事項",
         # スティッキーバー
@@ -568,6 +569,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "disclaimer_trademark": "Steam trademarks and logos are the property of Valve Corporation.",
         "feedback_header":      "Feedback",
         "feedback_body":        "Bug reports and feature requests welcome",
+        "feedback_note":        "Not all requests may be implemented, but your input is appreciated.",
         "feedback_btn":         "Send Feedback",
         # Terms of Service expander
         "tos_expander":         "Terms of Use & Disclaimer",
@@ -2154,8 +2156,10 @@ def main() -> None:
         st.markdown(
             f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
             f"{t('feedback_header')}</p>"
-            f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 1.6em;'>"
-            f"{t('feedback_body')}</p>",
+            f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 0.6em;'>"
+            f"{t('feedback_body')}</p>"
+            f"<p style='text-align:center;font-size:0.72rem;color:#777;margin:0 0 1.6em;'>"
+            f"{t('feedback_note')}</p>",
             unsafe_allow_html=True,
         )
         _, btn_col, _ = st.columns([1, 4, 1])
