@@ -339,8 +339,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "clear_all_warning":    "登録されているすべてのゲームを削除します。この操作は取り消せません。",
         "clear_all_confirm":    "すべて削除する",
         # X ボタン
-        "x_feedback":           "開発者をフォローする",
         "author_section":       "開発者を応援する",
+        "disclaimer_unofficial":"本アプリは非公式のファンメイドツールです。",
+        "disclaimer_no_relation":"Steam および Valve Corporation とは直接的な関わりはありません。",
+        "disclaimer_trademark": "Steam の商標・ロゴは Valve Corporation の財産です。",
         "feedback_header":      "フィードバック",
         "feedback_body":        "バグ報告や機能のご要望はこちら",
         "feedback_btn":         "要望・バグ報告フォーム",
@@ -435,8 +437,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "clear_all_warning":    "This will remove all registered games. This cannot be undone.",
         "clear_all_confirm":    "Delete All",
         # X button
-        "x_feedback":           "Follow the developer",
         "author_section":       "Support the developer",
+        "disclaimer_unofficial":"This is an unofficial fan-made tool.",
+        "disclaimer_no_relation":"It has no affiliation with Steam or Valve Corporation.",
+        "disclaimer_trademark": "Steam trademarks and logos are the property of Valve Corporation.",
         "feedback_header":      "Feedback",
         "feedback_body":        "Bug reports and feature requests welcome",
         "feedback_btn":         "Send Feedback",
@@ -1984,9 +1988,9 @@ def main() -> None:
         "<div style='text-align:center;font-size:0.8rem;color:#c8c0a0;line-height:1.8;"
         "background:rgba(200,160,64,0.12);border:1px solid rgba(200,160,64,0.35);"
         "border-radius:8px;padding:12px 20px;margin:0;'>"
-        "<strong>本アプリは非公式のファンメイドツールです。</strong><br>"
-        "Steam および Valve Corporation とは直接的な関わりはありません。<br>"
-        "Steam の商標・ロゴは Valve Corporation の財産です。"
+        f"<strong>{t('disclaimer_unofficial')}</strong><br>"
+        f"{t('disclaimer_no_relation')}<br>"
+        f"{t('disclaimer_trademark')}"
         "</div>",
         unsafe_allow_html=True,
     )
