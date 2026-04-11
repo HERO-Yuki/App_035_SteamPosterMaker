@@ -2091,7 +2091,6 @@ def main() -> None:
         st.markdown(_OFUSE_BUTTON_HTML, unsafe_allow_html=True)
         # ② X フォローボタン
         st.markdown(
-            "<hr style='margin:4px 0 16px;border:none;border-top:1px solid #444;'>"
             f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 1.6em;'>"
             f"{t('author_section')}</p>",
             unsafe_allow_html=True,
