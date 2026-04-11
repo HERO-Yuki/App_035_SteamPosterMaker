@@ -204,6 +204,8 @@ section[data-testid="stMain"] { margin-left: 0 !important; }
 
 /* ページ下部にスティッキーバーの高さ分の余白を確保（コンテンツが隠れないように） */
 section[data-testid="stMain"] > div > div { padding-bottom: 64px !important; }
+/* Streamlit の stMainBlockContainer 自身の padding-bottom も除去してフッターを最下部に */
+[data-testid="stMainBlockContainer"] { padding-bottom: 0 !important; }
 
 /* ── X ブランドリンクボタン ── */
 .x-btn {
@@ -302,6 +304,13 @@ div[data-testid="stButton"] > button { white-space: nowrap !important; }
     height: 1px !important;
     min-height: 1px !important;
     margin: 0.5rem 0 !important;
+  }
+  /* フッターの X / OFUSE ボタンを縦積み時に横長に */
+  [data-testid="stHorizontalBlock"]:has(.footer-sep) .x-btn,
+  [data-testid="stHorizontalBlock"]:has(.footer-sep) .ofuse-btn {
+    width: 72% !important;
+    max-width: 280px !important;
+    justify-content: center !important;
   }
 
   /* ── ダイアログ内 2カラム → 縦積み ── */
@@ -1953,33 +1962,28 @@ def main() -> None:
   var BAR_ID = 'spm-sticky-bar';
   var SEN_ID = 'poster-gen-sentinel';
   var doc = window.parent.document;
-  /* iframe 内の IntersectionObserver は iframe の viewport(height=0)を root にするため
-     window.parent.IntersectionObserver を使い、親ページの viewport を root にする */
-  var ParentIO = window.parent.IntersectionObserver;
+  var win = window.parent;
 
-  function setup() {
+  function updateBar() {
     var bar = doc.getElementById(BAR_ID);
     var sen = doc.getElementById(SEN_ID);
-    if (!bar || !sen || !ParentIO) return false;
-    if (bar._spmIO) { bar._spmIO.disconnect(); }
-    /* rootMargin: top を大きく取り、sentinel が上方に外れても「交差中」を維持する
-       → 一度生成エリアを通過したらページ最下部でもバーが再表示されない */
-    var io = new ParentIO(function(entries) {
-      var hidden = entries[0].isIntersecting;
-      bar.style.opacity       = hidden ? '0' : '1';
-      bar.style.pointerEvents = hidden ? 'none' : 'auto';
-    }, { rootMargin: '9999px 0px 0px 0px' });
-    bar._spmIO = io;
-    io.observe(sen);
-    return true;
+    if (!bar || !sen) return;
+    /* sentinel の top が viewport の高さ以下なら「到達済み or 通過済み」→ バーを隠す */
+    var reached = sen.getBoundingClientRect().top <= win.innerHeight;
+    bar.style.opacity       = reached ? '0' : '1';
+    bar.style.pointerEvents = reached ? 'none' : 'auto';
   }
 
-  if (!setup()) {
-    var mo = new MutationObserver(function() {
-      if (setup()) mo.disconnect();
-    });
-    mo.observe(doc.body, { childList: true, subtree: true });
-  }
+  /* スクロール毎に判定（passive で軽量） */
+  win.addEventListener('scroll', updateBar, { passive: true });
+
+  /* 初回チェック: sentinel が DOM に現れるまでポーリング */
+  var tid = setInterval(function() {
+    if (doc.getElementById(SEN_ID)) {
+      clearInterval(tid);
+      updateBar();
+    }
+  }, 80);
 })();
 </script>""",
         height=0,
