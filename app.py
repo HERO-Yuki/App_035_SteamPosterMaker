@@ -202,10 +202,8 @@ div[data-testid='stColumn'] > div[data-testid='stVerticalBlock'] { gap: 2px; }
 }
 section[data-testid="stMain"] { margin-left: 0 !important; }
 
-/* ページ下部にスティッキーバーの高さ分の余白を確保（コンテンツが隠れないように） */
-section[data-testid="stMain"] > div > div { padding-bottom: 64px !important; }
-/* Streamlit の stMainBlockContainer 自身の padding-bottom も除去してフッターを最下部に */
-[data-testid="stMainBlockContainer"] { padding-bottom: 0 !important; }
+/* ページ下部パディングは JS(_render_sticky_bar 直後の components.html)で動的に制御 */
+[data-testid="stMainBlockContainer"] { padding-bottom: 64px; }
 
 /* ── X ブランドリンクボタン ── */
 .x-btn {
@@ -1968,22 +1966,24 @@ def main() -> None:
     var bar = doc.getElementById(BAR_ID);
     var sen = doc.getElementById(SEN_ID);
     if (!bar || !sen) return;
-    /* sentinel の top が viewport の高さ以下なら「到達済み or 通過済み」→ バーを隠す */
+    /* sentinel の上端が viewport 内または上方に外れたら「到達済み」 */
     var reached = sen.getBoundingClientRect().top <= win.innerHeight;
     bar.style.opacity       = reached ? '0' : '1';
     bar.style.pointerEvents = reached ? 'none' : 'auto';
+    /* バーが消えているときは下部パディングも除去 */
+    var mc = doc.querySelector('[data-testid="stMainBlockContainer"]');
+    if (mc) mc.style.paddingBottom = reached ? '0px' : '64px';
   }
 
-  /* スクロール毎に判定（passive で軽量） */
+  /* スクロールリスナー: window と documentElement の両方に登録
+     (Streamlit はブラウザ・環境によってスクロール対象が異なるため) */
   win.addEventListener('scroll', updateBar, { passive: true });
+  try {
+    win.document.documentElement.addEventListener('scroll', updateBar, { passive: true });
+  } catch(e) {}
 
-  /* 初回チェック: sentinel が DOM に現れるまでポーリング */
-  var tid = setInterval(function() {
-    if (doc.getElementById(SEN_ID)) {
-      clearInterval(tid);
-      updateBar();
-    }
-  }, 80);
+  /* ポーリング: iframe 再生成・初回チェック・Streamlit リラン後を確実にカバー */
+  setInterval(updateBar, 150);
 })();
 </script>""",
         height=0,
