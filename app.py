@@ -185,7 +185,7 @@ _X_BUTTON_ICON_HTML = """
 _OFUSE_BUTTON_HTML = """
 <div style="text-align:center;margin:0 0 20px;">
   <a href="https://ofuse.me/168739" target="_blank" rel="noopener noreferrer" class="ofuse-btn">
-    ☕ OFUSE
+    OFUSE
   </a>
 </div>
 """
@@ -209,7 +209,9 @@ section[data-testid="stMain"] > div > div { padding-bottom: 64px !important; }
 .x-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  min-width: 160px;
   background: #000;
   color: #fff !important;
   border: 1px solid #333;
@@ -237,7 +239,9 @@ section[data-testid="stMain"] > div > div { padding-bottom: 64px !important; }
 .ofuse-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  min-width: 160px;
   background: #2882A7;
   color: #fff !important;
   border: 1px solid #2882A7;
@@ -2055,11 +2059,11 @@ def main() -> None:
 
     # ② フィードバックフォーム ＋ ③ 作者への導線（横並び）
     st.divider()
-    col_fb, col_sep, col_author = st.columns([10, 1, 10])
+    col_fb, col_sep, col_author = st.columns([10, 1, 10], vertical_alignment="center")
 
     with col_sep:
         st.markdown(
-            "<div style='border-left:1px solid #444;height:100%;min-height:80px;"
+            "<div style='border-left:1px solid #444;height:220px;"
             "margin:0 auto;width:1px;'></div>",
             unsafe_allow_html=True,
         )
@@ -2089,9 +2093,10 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.markdown(_OFUSE_BUTTON_HTML, unsafe_allow_html=True)
-        # ② X フォローボタン
+        # ② X フォローボタン（間隔を広めに取る）
         st.markdown(
-            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 1.6em;'>"
+            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;"
+            f"margin:1.8em 0 1.6em;'>"
             f"{t('author_section')}</p>",
             unsafe_allow_html=True,
         )
@@ -2125,6 +2130,16 @@ def main() -> None:
             """,
             unsafe_allow_html=True,
         )
+
+    # ── コピーライトフッター ────────────────────────────────
+    st.markdown(
+        "<div style='background:#000;color:#fff;text-align:center;"
+        "font-size:0.75rem;padding:12px 20px;margin-top:8px;border-radius:6px;'>"
+        "© 2026 Yuuki Hiiro &nbsp;—&nbsp; "
+        "This app is an unofficial fan-made tool, not affiliated with Valve."
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     # ── 編集ダイアログを開く ────────────────────────────────
     # スロットカードの「編集」ボタンが押されたとき editing_slot が設定される
