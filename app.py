@@ -2020,7 +2020,7 @@ def main() -> None:
         st.markdown(
             f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
             f"{t('feedback_header')}</p>"
-            f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 8px;'>"
+            f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 0.8em;'>"
             f"{t('feedback_body')}</p>",
             unsafe_allow_html=True,
         )
@@ -2035,7 +2035,7 @@ def main() -> None:
         st.markdown(
             f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
             f"{t('author_section')}</p>"
-            "<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 8px;'>"
+            "<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 0.8em;'>"
             "@Yuki_HERO44</p>",
             unsafe_allow_html=True,
         )
