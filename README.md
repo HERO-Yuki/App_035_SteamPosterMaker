@@ -153,8 +153,9 @@ App_035_SteamPosterMaker/
 
 ## フィードバック・不具合報告
 
-バグの報告や機能リクエストは [フィードバックフォーム](https://forms.gle/GpBA3PHgZHsze82r8) からお願いします。  
-開発者の X アカウント: [@Yuki_HERO44](https://x.com/Yuki_HERO44)
+バグの報告や機能リクエストは [フィードバックフォーム](https://forms.gle/GpBA3PHgZHsze82r8) からお願いします。
+
+開発者: [@Yuki_HERO44](https://x.com/Yuki_HERO44) on X
 
 ---
 
