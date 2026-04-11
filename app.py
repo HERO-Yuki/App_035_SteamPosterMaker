@@ -196,6 +196,9 @@ _GLOBAL_CSS = """
 /* スロットカード列内のギャップを詰める */
 div[data-testid='stColumn'] > div[data-testid='stVerticalBlock'] { gap: 2px; }
 
+/* ── 横スクロール禁止（100vw フッターによるオーバーフロー対策） ── */
+html, body { overflow-x: hidden !important; }
+
 /* ── サイドバーを完全非表示 ── */
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {
   display: none !important;
