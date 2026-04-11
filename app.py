@@ -340,6 +340,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "clear_all_confirm":    "すべて削除する",
         # X ボタン
         "x_feedback":           "ご意見・ご要望は開発者のXまで",
+        "feedback_header":      "フィードバック",
+        "feedback_body":        "バグ報告や機能のご要望はこちら",
+        "feedback_btn":         "要望・バグ報告フォーム",
         # スティッキーバー
         "sticky_count":         "{filled} / {num} 本",
         # DEV モード
@@ -430,6 +433,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "clear_all_confirm":    "Delete All",
         # X button
         "x_feedback":           "Feedback & requests → developer's X",
+        "feedback_header":      "Feedback",
+        "feedback_body":        "Bug reports and feature requests welcome",
+        "feedback_btn":         "Send Feedback",
         # Sticky bar
         "sticky_count":         "{filled} / {num}",
         # DEV mode
@@ -1979,6 +1985,23 @@ def main() -> None:
         unsafe_allow_html=True,
     )
     st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
+
+    # ── フィードバックフォーム ───────────────────────────────
+    st.divider()
+    st.markdown(
+        f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
+        f"{t('feedback_header')}</p>"
+        f"<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 8px;'>"
+        f"{t('feedback_body')}</p>",
+        unsafe_allow_html=True,
+    )
+    st.link_button(
+        t("feedback_btn"),
+        "https://forms.gle/GpBA3PHgZHsze82r8",
+        icon=":material/rate_review:",
+        use_container_width=True,
+    )
+
     with st.expander("利用規約・免責事項"):
         st.markdown(
             """
