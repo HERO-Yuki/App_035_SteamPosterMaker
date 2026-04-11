@@ -2007,7 +2007,14 @@ def main() -> None:
 
     # ② フィードバックフォーム ＋ ③ 作者への導線（横並び）
     st.divider()
-    col_fb, col_author = st.columns(2)
+    col_fb, col_sep, col_author = st.columns([10, 1, 10])
+
+    with col_sep:
+        st.markdown(
+            "<div style='border-left:1px solid #444;height:100%;min-height:80px;"
+            "margin:0 auto;width:1px;'></div>",
+            unsafe_allow_html=True,
+        )
 
     with col_fb:
         st.markdown(
