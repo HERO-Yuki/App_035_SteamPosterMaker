@@ -344,6 +344,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "feedback_header":      "フィードバック",
         "feedback_body":        "バグ報告や機能のご要望はこちら",
         "feedback_btn":         "要望・バグ報告フォーム",
+        # 利用規約エクスパンダー
+        "tos_expander":         "利用規約・免責事項",
         # スティッキーバー
         "sticky_count":         "{filled} / {num} 本",
         # DEV モード
@@ -438,6 +440,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "feedback_header":      "Feedback",
         "feedback_body":        "Bug reports and feature requests welcome",
         "feedback_btn":         "Send Feedback",
+        # Terms of Service expander
+        "tos_expander":         "Terms of Use & Disclaimer",
         # Sticky bar
         "sticky_count":         "{filled} / {num}",
         # DEV mode
@@ -1946,13 +1950,14 @@ def main() -> None:
             use_container_width=True,
         )
         # ── X シェアボタン ──────────────────────────────────
-        _tweet_text = t("share_tweet_text")
-        _hashtags   = t("share_hashtags")
-        _tweet_url  = (
-            "https://twitter.com/intent/tweet"
-            f"?text={urllib.parse.quote(_tweet_text)}"
-            f"&url={urllib.parse.quote(APP_URL)}"
-            f"&hashtags={urllib.parse.quote(_hashtags, safe=',')}"
+        _tweet_params = urllib.parse.urlencode(
+            {"text": t("share_tweet_text"), "url": APP_URL},
+            quote_via=urllib.parse.quote,
+        )
+        _tweet_url = (
+            "https://x.com/intent/tweet?"
+            + _tweet_params
+            + "&hashtags=" + urllib.parse.quote(t("share_hashtags"), safe=",")
         )
         st.divider()
         st.markdown(
@@ -2014,7 +2019,7 @@ def main() -> None:
 
     # ④ 利用規約・免責事項
     st.divider()
-    with st.expander("利用規約・免責事項"):
+    with st.expander(t("tos_expander")):
         st.markdown(
             """
 **著作権について**
