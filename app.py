@@ -481,6 +481,12 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
     `?_sg=<timestamp>` を書き換えて Streamlit のリランを誘発する方式を採用。
     リラン後、main() の冒頭で `st.session_state["_sticky_generate"]` を検知して
     生成処理を実行する。
+
+    バーの表示制御:
+      メイン生成エリア手前のセンチネル div（id="poster-gen-sentinel"）が
+      ビューポートに入ると、components.html() 経由で注入した IntersectionObserver が
+      バーの opacity を 0 → 1 に切り替える（opacity + transition で滑らかにフェード）。
+      display ではなく opacity を使用するのは CSS transition が display に非対応なため。
     """
     btn_label  = t("regenerate_btn") if already_generated else t("generate_btn")
     btn_icon   = "refresh"   if already_generated else "palette"
