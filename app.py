@@ -10,6 +10,7 @@ import os
 import re
 import random
 import datetime
+import urllib.parse
 from collections import deque
 from functools import lru_cache
 
@@ -346,6 +347,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "dev_fill_btn":         "テストデータを入力",
         # 言語トグル
         "lang_toggle":          "EN",
+        # X シェアボタン
+        "share_header":         "作ったポスターをシェアしよう",
+        "share_info":           "Xの投稿画面が開いたら、保存したポスター画像を添付して投稿してください。",
+        "share_btn":            "X でシェアする",
+        "share_tweet_text":     "SteamPosterMakerで推しゲーのポスターを作りました！Steamのおすすめゲームをまとめた画像を自動生成できるツールです。ぜひ試してみて",
+        "share_hashtags":       "Steam,おすすめゲーム,SteamPosterMaker",
     },
     "en": {
         # Header row
@@ -430,6 +437,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "dev_fill_btn":         "Fill with Test Data",
         # Language toggle
         "lang_toggle":          "日本語",
+        # X share button
+        "share_header":         "Share Your Poster!",
+        "share_info":           "When X opens, attach the downloaded poster image to complete your post!",
+        "share_btn":            "Share on X",
+        "share_tweet_text":     "I made a game recommendation poster with SteamPosterMaker! A tool that auto-generates summary images of your favorite Steam games. Check it out",
+        "share_hashtags":       "Steam,SteamGames,SteamPosterMaker",
     },
 }
 
@@ -1922,6 +1935,28 @@ def main() -> None:
             data=poster_bytes,
             file_name=meta["filename"],
             mime="image/png",
+            use_container_width=True,
+        )
+        # ── X シェアボタン ──────────────────────────────────
+        _tweet_text = t("share_tweet_text")
+        _hashtags   = t("share_hashtags")
+        _tweet_url  = (
+            "https://twitter.com/intent/tweet"
+            f"?text={urllib.parse.quote(_tweet_text)}"
+            f"&url={urllib.parse.quote(APP_URL)}"
+            f"&hashtags={urllib.parse.quote(_hashtags, safe=',')}"
+        )
+        st.divider()
+        st.markdown(
+            f"<p style='text-align:center;font-weight:bold;font-size:0.95rem;"
+            f"margin:0 0 6px;'>{t('share_header')}</p>",
+            unsafe_allow_html=True,
+        )
+        st.info(t("share_info"), icon=":material/attach_file:")
+        st.link_button(
+            t("share_btn"),
+            _tweet_url,
+            icon=":material/share:",
             use_container_width=True,
         )
         if st.session_state.pop("_poster_complete", False):
