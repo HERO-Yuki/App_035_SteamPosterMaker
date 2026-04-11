@@ -2038,10 +2038,8 @@ def main() -> None:
 
     with col_author:
         st.markdown(
-            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 4px;'>"
-            f"{t('author_section')}</p>"
-            "<p style='text-align:center;font-size:0.8rem;color:#aaa;margin:0 0 0.8em;'>"
-            "@Yuki_HERO44</p>",
+            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 0.8em;'>"
+            f"{t('author_section')}</p>",
             unsafe_allow_html=True,
         )
         st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
