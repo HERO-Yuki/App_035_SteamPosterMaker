@@ -2044,7 +2044,7 @@ def main() -> None:
 
     with col_author:
         st.markdown(
-            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 0.8em;'>"
+            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 1.6em;'>"
             f"{t('author_section')}</p>",
             unsafe_allow_html=True,
         )
