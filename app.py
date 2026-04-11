@@ -328,15 +328,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "save_btn":             "保存して閉じる",
         "dlg_clear_btn":        "クリア",
         "char_counter_tmpl":    "{n} / {max} 文字",
+        "char_counter_suffix":  "文字",
         "over_limit_err":       "{max} 文字を超えています。文字数を減らしてから保存してください。",
         "age_price_label":      "18+ / 詳細取得不可",
         # スロットカード
         "edit_btn":             "編集",
+        "empty_slot_sort":      "空きスロット {n:02d}",
         # 全クリアダイアログ
         "clear_all_warning":    "登録されているすべてのゲームを削除します。この操作は取り消せません。",
         "clear_all_confirm":    "すべて削除する",
         # X ボタン
         "x_feedback":           "ご意見・ご要望は開発者のXまで",
+        # スティッキーバー
+        "sticky_count":         "{filled} / {num} 本",
         # DEV モード
         "dev_expander":         "開発者ツール",
         "dev_fill_btn":         "テストデータを入力",
@@ -408,15 +412,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "save_btn":             "Save & Close",
         "dlg_clear_btn":        "Clear",
         "char_counter_tmpl":    "{n} / {max} chars",
+        "char_counter_suffix":  "chars",
         "over_limit_err":       "Over {max} characters. Please shorten the text before saving.",
         "age_price_label":      "18+ / Details unavailable",
         # Slot card
         "edit_btn":             "Edit",
+        "empty_slot_sort":      "Empty Slot {n:02d}",
         # Clear all dialog
         "clear_all_warning":    "This will remove all registered games. This cannot be undone.",
         "clear_all_confirm":    "Delete All",
         # X button
         "x_feedback":           "Feedback & requests → developer's X",
+        # Sticky bar
+        "sticky_count":         "{filled} / {num}",
         # DEV mode
         "dev_expander":         "Dev Tools",
         "dev_fill_btn":         "Fill with Test Data",
@@ -470,7 +478,7 @@ def _render_sticky_bar(filled: int, num_games: int, already_generated: bool) -> 
     <!-- プログレスバー（短め・固定幅） -->
     <div style="width:120px;flex-shrink:0;">
       <div style="font-size:0.7rem;color:#aaa;margin-bottom:3px;white-space:nowrap;">
-        {filled} / {num_games} 本
+        {t("sticky_count", filled=filled, num=num_games)}
       </div>
       <div style="background:{_STEAM_BG2};border-radius:4px;height:6px;overflow:hidden;">
         <div style="background:{_PRIMARY_COLOR};width:{pct}%;height:100%;
@@ -1494,7 +1502,7 @@ def _edit_dialog_body(i: int) -> None:
                 st.error(t("over_limit_err", max=max_chars))
 
             # ── リアルタイムカウンター（JS）─ダイアログ内の唯一の textarea を対象 ──
-            lang_suffix = t("char_counter_tmpl", n=0, max=0).split("0")[2].strip()
+            lang_suffix = t("char_counter_suffix")
             components.html(
                 f"""<script>
 (function(){{
@@ -1583,7 +1591,7 @@ def render_slot_card(i: int, disabled: bool = False) -> None:
                     st.image(game["image_url"], use_container_width=True)
             with col_info:
                 price_raw = (
-                    "18+ / 詳細取得不可"
+                    t("age_price_label")
                     if game.get("age_restricted")
                     else game["price"]
                 )
@@ -1774,7 +1782,7 @@ def main() -> None:
         sort_labels = []
         for idx in range(num_games):
             g = st.session_state.games[idx]
-            sort_labels.append(g["title"] if g else f"空きスロット {idx + 1:02d}")
+            sort_labels.append(g["title"] if g else t("empty_slot_sort", n=idx + 1))
 
         sorted_labels = sort_items(sort_labels, key="slot_sorter")
 
@@ -1821,15 +1829,15 @@ def main() -> None:
                 list(THEMES.keys()),
                 key="theme_sel",
             )
-            _t = THEMES[theme_name]
+            theme_colors = THEMES[theme_name]
             _swatch_html = "".join(
                 f"<span title='{label}' style='display:inline-block;width:22px;height:22px;"
                 f"border-radius:5px;background:rgb{color};margin-right:5px;"
                 f"border:1px solid #555;vertical-align:middle'></span>"
                 for label, color in [
-                    ("bg", _t["bg"]),
-                    ("accent", _t["accent"]),
-                    ("card", _t["card_bg"]),
+                    ("bg", theme_colors["bg"]),
+                    ("accent", theme_colors["accent"]),
+                    ("card", theme_colors["card_bg"]),
                 ]
             )
             st.markdown(_swatch_html, unsafe_allow_html=True)
