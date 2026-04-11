@@ -1930,7 +1930,7 @@ def main() -> None:
     # ── 免責事項 ────────────────────────────────────────────
     st.divider()
     st.markdown(
-        "<p style='text-align:center;font-size:0.8rem;color:#aaa;line-height:1.8;margin:0'>"
+        "<p style='text-align:center;font-size:0.8rem;color:#c8a040;line-height:1.8;margin:0'>"
         "<strong>本アプリは非公式のファンメイドツールです。</strong><br>"
         "Steam および Valve Corporation とは直接的な関わりはありません。<br>"
         "Steam の商標・ロゴは Valve Corporation の財産です。"
