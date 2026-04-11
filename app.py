@@ -339,7 +339,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "clear_all_warning":    "登録されているすべてのゲームを削除します。この操作は取り消せません。",
         "clear_all_confirm":    "すべて削除する",
         # X ボタン
-        "author_section":       "開発者を応援する",
+        "author_section":       "開発者をフォローする",
         "disclaimer_unofficial":"本アプリは非公式のファンメイドツールです。",
         "disclaimer_no_relation":"Steam および Valve Corporation とは直接的な関わりはありません。",
         "disclaimer_trademark": "Steam の商標・ロゴは Valve Corporation の財産です。",
