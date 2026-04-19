@@ -1348,6 +1348,29 @@ def _price_badge_html(price_raw: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════
+#  ダイアログ内部ヘルパー
+# ═══════════════════════════════════════════════════════════
+
+def _commit_game_selection(i: int, app_id: int, details: dict, title_fallback: str) -> None:
+    """
+    選択ゲームをスロット i に確定し、ダイアログ関連のセッション変数をリセットする。
+
+    URL / AppID 直接入力 / テキスト検索の3経路で共通する後処理を集約。
+    """
+    st.session_state.games[i] = {
+        "app_id":         app_id,
+        "title":          details.get("title") or title_fallback,
+        "image_url":      details.get("image_url", ""),
+        "price":          details.get("price", "不明"),
+        "review":         "",
+        "age_restricted": details.get("age_restricted", False),
+    }
+    st.session_state[f"dlg_review_{i}"] = ""
+    st.session_state.search_results[i]  = []
+    st.session_state.pop(f"dlg_search_back_{i}", None)
+
+
+# ═══════════════════════════════════════════════════════════
 #  セッション状態初期化
 # ═══════════════════════════════════════════════════════════
 
@@ -1487,17 +1510,7 @@ def _edit_dialog_body(i: int) -> None:
                         st.warning(t("warn_age"), icon=":material/block:")
                     elif not details.get("title"):
                         st.warning(t("warn_id_notfound", id=app_id), icon=":material/error:")
-                    st.session_state.games[i] = {
-                        "app_id":         app_id,
-                        "title":          details.get("title") or f"AppID {app_id}",
-                        "image_url":      details.get("image_url"),
-                        "price":          details.get("price", "不明"),
-                        "review":         "",
-                        "age_restricted": details.get("age_restricted", False),
-                    }
-                    st.session_state[f"dlg_review_{i}"]  = ""
-                    st.session_state.search_results[i]   = []
-                    st.session_state.pop(f"dlg_search_back_{i}", None)
+                    _commit_game_selection(i, app_id, details, f"AppID {app_id}")
                 elif q.isdigit():
                     # AppID 直接入力
                     app_id = int(q)
@@ -1507,17 +1520,7 @@ def _edit_dialog_body(i: int) -> None:
                         st.warning(t("warn_age"), icon=":material/block:")
                     elif not details.get("title"):
                         st.warning(t("warn_id_notfound", id=app_id), icon=":material/error:")
-                    st.session_state.games[i] = {
-                        "app_id":         app_id,
-                        "title":          details.get("title") or f"AppID {app_id}",
-                        "image_url":      details.get("image_url"),
-                        "price":          details.get("price", "不明"),
-                        "review":         "",
-                        "age_restricted": details.get("age_restricted", False),
-                    }
-                    st.session_state[f"dlg_review_{i}"]  = ""
-                    st.session_state.search_results[i]   = []
-                    st.session_state.pop(f"dlg_search_back_{i}", None)
+                    _commit_game_selection(i, app_id, details, f"AppID {app_id}")
                 else:
                     # テキスト検索
                     with st.spinner(t("spin_search", q=q)):
@@ -1560,17 +1563,7 @@ def _edit_dialog_body(i: int) -> None:
                     details = get_game_details(chosen["app_id"])
                 if details.get("age_restricted"):
                     st.warning(t("warn_age"), icon=":material/block:")
-                st.session_state.games[i] = {
-                    "app_id":         chosen["app_id"],
-                    "title":          details["title"] or chosen["name"],
-                    "image_url":      details["image_url"],
-                    "price":          details["price"],
-                    "review":         "",
-                    "age_restricted": details.get("age_restricted", False),
-                }
-                st.session_state[f"dlg_review_{i}"]  = ""
-                st.session_state.search_results[i]   = []
-                st.session_state.pop(f"dlg_search_back_{i}", None)
+                _commit_game_selection(i, chosen["app_id"], details, chosen["name"])
 
         # ── フッターボタン ────────────────────────────────────
         st.divider()
