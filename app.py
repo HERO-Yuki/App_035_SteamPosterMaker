@@ -473,6 +473,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "feedback_header":      "フィードバック",
         "feedback_body":        "バグ報告や機能のご要望はこちら",
         "feedback_btn":         "要望・バグ報告\u200bフォーム",
+        # クイック追加
+        "quick_add_header":     "ゲームを追加",
+        "quick_add_btn":        "追加",
+        "slots_full_warn":      "すべてのスロットが埋まっています。スロットを編集するか、全クリアしてください。",
+        "duplicate_warn":       "このゲームはすでに登録されています。",
+        "added_toast":          "スロット {n} に追加しました",
         # 利用規約エクスパンダー
         "tos_expander":         "利用規約・免責事項",
         # スティッキーバー
@@ -572,6 +578,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "feedback_header":      "Feedback",
         "feedback_body":        "Bug reports and feature requests welcome",
         "feedback_btn":         "Send Feedback",
+        # Quick add
+        "quick_add_header":     "Add Games",
+        "quick_add_btn":        "Add",
+        "slots_full_warn":      "All slots are full. Edit a slot or clear all to start over.",
+        "duplicate_warn":       "This game is already registered.",
+        "added_toast":          "Added to Slot {n}",
         # Terms of Service expander
         "tos_expander":         "Terms of Use & Disclaimer",
         # Sticky bar
@@ -1388,6 +1400,8 @@ def init_session() -> None:
         st.session_state["lang"] = "ja"
     if "show_price" not in st.session_state:
         st.session_state["show_price"] = True
+    if "top_search_results" not in st.session_state:
+        st.session_state["top_search_results"] = []
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1407,6 +1421,9 @@ def _clear_all_body() -> None:
             for idx in range(MAX_GAMES):
                 for k in [f"dlg_review_{idx}", f"dlg_q_{idx}", f"dlg_search_back_{idx}"]:
                     st.session_state.pop(k, None)
+            st.session_state["top_search_results"] = []
+            st.session_state.pop("top_q", None)
+            st.session_state.pop("top_sel", None)
             st.session_state.pop("_confirm_clear_all", None)
             st.rerun()
     with col_no:
@@ -1765,6 +1782,127 @@ def render_slot_card(i: int, disabled: bool = False) -> None:
 
 
 # ═══════════════════════════════════════════════════════════
+#  クイック追加セクション
+# ═══════════════════════════════════════════════════════════
+
+def _render_quick_add_section(num_games: int) -> None:
+    """
+    ページ上部に表示するクイック追加 UI。
+    検索 → 候補選択 → 「追加」ボタンで次の空きスロットに自動割り当てる。
+    URL / AppID 入力時は検索結果を介さず即追加。
+    """
+    st.subheader(t("quick_add_header"), anchor=False)
+
+    next_slot = next(
+        (idx for idx, g in enumerate(st.session_state.games[:num_games]) if g is None),
+        None,
+    )
+
+    if next_slot is None:
+        st.info(t("slots_full_warn"), icon=":material/check_circle:")
+        return
+
+    existing_ids: set[int] = {
+        g["app_id"] for g in st.session_state.games[:num_games] if g is not None
+    }
+
+    # ── 検索フォーム ──────────────────────────────────────────
+    with st.form(key="top_search_form", border=False):
+        col_q, col_btn = st.columns([5, 1])
+        with col_q:
+            st.text_input(
+                t("search_btn"),
+                key="top_q",
+                placeholder=t("search_ph"),
+                label_visibility="collapsed",
+                help=t("search_help"),
+            )
+        with col_btn:
+            search_clicked = st.form_submit_button(
+                t("search_btn"),
+                icon=":material/search:",
+                use_container_width=True,
+            )
+
+    if search_clicked:
+        q = st.session_state.get("top_q", "").strip()
+        if not q:
+            st.warning(t("warn_empty_query"))
+        else:
+            url_match = re.search(r"steampowered\.com/app/(\d+)", q)
+            if url_match or q.isdigit():
+                # URL / AppID: 即追加パス
+                app_id = int(url_match.group(1)) if url_match else int(q)
+                spinner_text = t("spin_url") if url_match else t("spin_appid", id=app_id)
+                with st.spinner(spinner_text):
+                    details = get_game_details(app_id)
+                if app_id in existing_ids:
+                    st.warning(t("duplicate_warn"), icon=":material/warning:")
+                elif not details.get("title") and not details.get("age_restricted"):
+                    st.warning(t("warn_id_notfound", id=app_id), icon=":material/error:")
+                else:
+                    if details.get("age_restricted"):
+                        st.warning(t("warn_age"), icon=":material/block:")
+                    _commit_game_selection(next_slot, app_id, details, f"AppID {app_id}")
+                    st.toast(t("added_toast", n=next_slot + 1))
+                    st.session_state["top_search_results"] = []
+                    st.rerun()
+            else:
+                # テキスト検索: 候補一覧を表示
+                with st.spinner(t("spin_search", q=q)):
+                    results = search_steam(q)
+                st.session_state["top_search_results"] = results
+                st.session_state.pop("top_sel", None)
+                if not results:
+                    st.warning(t("warn_notfound"))
+
+    # ── 検索結果 → 候補選択 → 追加 ──────────────────────────
+    results = st.session_state.get("top_search_results", [])
+    if results:
+        options_map = {
+            f"{r['name']}  (AppID: {r['app_id']})": r
+            for r in results[:10]
+        }
+        col_drop, col_prev = st.columns([3, 2])
+        with col_drop:
+            sel_key = st.selectbox(
+                "candidates",
+                list(options_map.keys()),
+                key="top_sel",
+                label_visibility="collapsed",
+            )
+            chosen = options_map[sel_key]
+            already_registered = chosen["app_id"] in existing_ids
+            if already_registered:
+                st.caption(t("duplicate_warn"))
+            add_clicked = st.button(
+                t("quick_add_btn"),
+                key="top_add_btn",
+                icon=":material/add:",
+                use_container_width=True,
+                disabled=already_registered,
+                type="primary",
+            )
+        with col_prev:
+            prev_url = (
+                f"https://cdn.akamai.steamstatic.com/steam/apps"
+                f"/{chosen['app_id']}/header.jpg"
+            )
+            st.image(prev_url, use_container_width=True, caption=chosen["name"])
+
+        if add_clicked:
+            with st.spinner(t("spin_details", name=chosen["name"])):
+                details = get_game_details(chosen["app_id"])
+            if details.get("age_restricted"):
+                st.warning(t("warn_age"), icon=":material/block:")
+            _commit_game_selection(next_slot, chosen["app_id"], details, chosen["name"])
+            st.toast(t("added_toast", n=next_slot + 1))
+            st.session_state["top_search_results"] = []
+            st.session_state.pop("top_sel", None)
+            st.rerun()
+
+
+# ═══════════════════════════════════════════════════════════
 #  メイン
 # ═══════════════════════════════════════════════════════════
 
@@ -1873,6 +2011,11 @@ def main() -> None:
                 help=t("num_games_help"),
             )
             st.caption(f"Card {layout['card_w']} × {layout['card_h']} px")
+
+    st.divider()
+
+    # ── クイック追加 ────────────────────────────────────────
+    _render_quick_add_section(num_games)
 
     st.divider()
 
