@@ -182,14 +182,6 @@ _X_BUTTON_ICON_HTML = """
 </div>
 """
 
-_OFUSE_BUTTON_HTML = """
-<div style="text-align:center;margin:0 0 20px;">
-  <a href="https://ofuse.me/d57de631" target="_blank" rel="noopener noreferrer" class="ofuse-btn">
-    OFUSE
-  </a>
-</div>
-"""
-
 # グローバル CSS（スロットカード高さ揃え + 列ギャップ調整 + X ボタン共通スタイル）
 _GLOBAL_CSS = """
 <style>
@@ -238,34 +230,6 @@ section[data-testid="stMain"] { margin-left: 0 !important; }
   color: #fff !important;
 }
 
-/* ── OFUSE 応援ボタン ── */
-.ofuse-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-width: 160px;
-  background: #2882A7;
-  color: #fff !important;
-  border: 1px solid #2882A7;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 0.85rem;
-  font-weight: bold;
-  text-decoration: none !important;
-  line-height: 1.4;
-  white-space: nowrap;
-  transition: opacity 0.2s ease;
-}
-.ofuse-btn:visited, .ofuse-btn:active, .ofuse-btn:focus {
-  color: #fff !important;
-  text-decoration: none !important;
-}
-.ofuse-btn:hover {
-  opacity: 0.8;
-  color: #fff !important;
-}
-
 /* ── 言語トグルボタン: テキスト折り返しを防ぐ ── */
 div[data-testid="stButton"] > button { white-space: nowrap !important; }
 
@@ -306,9 +270,8 @@ div[data-testid="stButton"] > button { white-space: nowrap !important; }
     min-height: 1px !important;
     margin: 0.5rem 0 !important;
   }
-  /* フッターの X / OFUSE ボタンを縦積み時に横長に */
-  [data-testid="stHorizontalBlock"]:has(.footer-sep) .x-btn,
-  [data-testid="stHorizontalBlock"]:has(.footer-sep) .ofuse-btn {
+  /* フッターの X ボタンを縦積み時に横長に */
+  [data-testid="stHorizontalBlock"]:has(.footer-sep) .x-btn {
     width: 72% !important;
     max-width: 280px !important;
     justify-content: center !important;
@@ -319,8 +282,8 @@ div[data-testid="stButton"] > button { white-space: nowrap !important; }
     flex-direction: column !important;
   }
 
-  /* ── X / OFUSE ボタン: タッチターゲット拡大 ── */
-  .x-btn, .ofuse-btn {
+  /* ── X ボタン: タッチターゲット拡大 ── */
+  .x-btn {
     padding: 10px 18px !important;
     font-size: 0.95rem !important;
     min-width: 140px !important;
@@ -464,8 +427,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # 全クリアダイアログ
         "clear_all_warning":    "登録されているすべてのゲームを削除します。この操作は取り消せません。",
         "clear_all_confirm":    "すべて削除する",
-        # X ボタン・OFUSE ボタン
-        "ofuse_header":         "開発者を応援する",
+        # X ボタン
         "author_section":       "開発者をフォローする",
         "disclaimer_unofficial":"本アプリは非公式のファンメイドツールです。",
         "disclaimer_no_relation":"Steam および Valve Corporation とは直接的な関わりはありません。",
@@ -569,8 +531,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Clear all dialog
         "clear_all_warning":    "This will remove all registered games. This cannot be undone.",
         "clear_all_confirm":    "Delete All",
-        # X button / OFUSE button
-        "ofuse_header":         "Support the developer",
+        # X button
         "author_section":       "Follow the developer",
         "disclaimer_unofficial":"This is an unofficial fan-made tool.",
         "disclaimer_no_relation":"It has no affiliation with Steam or Valve Corporation.",
@@ -2258,6 +2219,7 @@ def main() -> None:
             _tweet_url,
             icon=":material/share:",
             use_container_width=True,
+            type="primary",
         )
         if st.session_state.pop("_poster_complete", False):
             st.toast(t("toast_done"), icon=":material/check_circle:")
@@ -2284,7 +2246,7 @@ def main() -> None:
 
     with col_sep:
         st.markdown(
-            "<div class='footer-sep' style='border-left:1px solid #444;height:220px;"
+            "<div class='footer-sep' style='border-left:1px solid #444;height:120px;"
             "margin:0 auto;width:1px;'></div>",
             unsafe_allow_html=True,
         )
@@ -2307,17 +2269,9 @@ def main() -> None:
             )
 
     with col_author:
-        # ① OFUSE 応援ボタン
-        st.markdown(
-            f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;margin:0 0 1.6em;'>"
-            f"{t('ofuse_header')}</p>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(_OFUSE_BUTTON_HTML, unsafe_allow_html=True)
-        # ② X フォローボタン（間隔を広めに取る）
         st.markdown(
             f"<p style='text-align:center;font-size:0.85rem;font-weight:bold;"
-            f"margin:1.8em 0 1.6em;'>"
+            f"margin:0 0 1.6em;'>"
             f"{t('author_section')}</p>",
             unsafe_allow_html=True,
         )
@@ -2349,7 +2303,6 @@ def main() -> None:
 
 **利用している外部サービスについて**
 * 本アプリは <a href="https://streamlit.io" target="_blank" style="color:#a8c8e8;text-decoration:underline">Streamlit</a> を使用して構築されており、<a href="https://streamlit.io/cloud" target="_blank" style="color:#a8c8e8;text-decoration:underline">Streamlit Community Cloud</a> 上でホスティングされています。Streamlit の<a href="https://streamlit.io/terms-of-use" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>も併せて適用されます。
-* フッターの「OFUSE」ボタンは、開発者個人の支援ページ（<a href="https://ofuse.me" target="_blank" style="color:#a8c8e8;text-decoration:underline">ofuse.me</a> / 株式会社 Sozi）へのリンクです。OFUSE はこのアプリとは無関係であり、OFUSE の<a href="https://ofuse.me/terms" target="_blank" style="color:#a8c8e8;text-decoration:underline">利用規約</a>はOFUSE サービス内でのみ適用されます。支援はあくまで任意です。
             """,
             unsafe_allow_html=True,
         )
