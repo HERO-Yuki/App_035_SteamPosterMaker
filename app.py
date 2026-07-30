@@ -457,6 +457,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "share_btn":            "X でシェアする",
         "share_tweet_text":     "SteamPosterMakerで推しゲーのポスターを作りました！Steamのおすすめゲームをまとめた画像を自動生成できるツールです。ぜひ試してみて",
         "share_hashtags":       "Steam,おすすめゲーム,SteamPosterMaker",
+        "fest_live_banner":     "🎪 Steamで「{name}」開催中（〜{end}）！「{theme}」テーマでおすすめ10選ポスターを作って布教しよう",
+        "fest_soon_banner":     "🎪 Steamで「{name}」が {start} に始まります。おすすめ10選ポスターを仕込んでおこう",
+        "fest_theme_btn":       "推奨テーマ「{theme}」を使う",
     },
     "en": {
         # Header row
@@ -561,6 +564,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "share_btn":            "Share on X",
         "share_tweet_text":     "I made a game recommendation poster with SteamPosterMaker! A tool that auto-generates summary images of your favorite Steam games. Check it out",
         "share_hashtags":       "Steam,SteamGames,SteamPosterMaker",
+        "fest_live_banner":     "🎪 \"{name}\" is live on Steam until {end}! Make a top-10 poster with the \"{theme}\" theme",
+        "fest_soon_banner":     "🎪 \"{name}\" starts {start} on Steam. Prep your top-10 poster now",
+        "fest_theme_btn":       "Use \"{theme}\" theme",
     },
 }
 
@@ -1214,6 +1220,61 @@ def draw_card(
 # ═══════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════
+#  Steam フェス/セール カレンダー（静的・年数回手動更新）
+#  ── 開始・終了はすべて 10:00 PT ≒ 17:00 UTC（= JST 翌日 2:00）──
+#  ── 日程ソース: steamdb.info/sales/history ────────────────
+# ═══════════════════════════════════════════════════════════
+
+FESTS: list[dict] = [
+    {"name_ja": "サイバーパンクフェス",     "name_en": "Cyberpunk Fest",
+     "start": "2026-08-03", "end": "2026-08-10", "theme": "Cyber Neon",
+     "tag_ja": "サイバーパンクフェス",       "tag_en": "CyberpunkFest"},
+    {"name_ja": "サバイバルクラフトフェス", "name_en": "PvE Survival Crafting Fest",
+     "start": "2026-08-31", "end": "2026-09-07", "theme": "Steam Classic",
+     "tag_ja": "サバイバルクラフト",         "tag_en": "SurvivalCraftingFest"},
+    {"name_ja": "パーティ制RPGフェス",      "name_en": "Party-Based RPG Fest",
+     "start": "2026-09-14", "end": "2026-09-21", "theme": "Dark Fantasy",
+     "tag_ja": "RPGフェス",                  "tag_en": "PartyBasedRPGFest"},
+    {"name_ja": "オータムセール",           "name_en": "Autumn Sale",
+     "start": "2026-10-01", "end": "2026-10-08", "theme": "Steam Classic",
+     "tag_ja": "Steamオータムセール",        "tag_en": "SteamAutumnSale"},
+    {"name_ja": "スチームスクリーム",       "name_en": "Steam Scream Fest",
+     "start": "2026-10-26", "end": "2026-11-02", "theme": "Horror Void",
+     "tag_ja": "スチームスクリーム",         "tag_en": "SteamScreamFest"},
+    {"name_ja": "オートバトラーRPGフェス",  "name_en": "Auto-Battler RPG Fest",
+     "start": "2026-11-16", "end": "2026-11-23", "theme": "Pixel Retro",
+     "tag_ja": "オートバトラー",             "tag_en": "AutoBattlerFest"},
+    {"name_ja": "ウィンターセール",         "name_en": "Winter Sale",
+     "start": "2026-12-17", "end": "2027-01-04", "theme": "Steam Classic",
+     "tag_ja": "Steamウィンターセール",      "tag_en": "SteamWinterSale"},
+]
+
+_FEST_SOON_DAYS = 3  # 開始何日前から「まもなく」バナーを出すか
+
+
+def _current_fest() -> tuple[dict | None, str]:
+    """開催中 or まもなく開始のフェス/セールを返す。
+
+    Returns:
+        (fest, "live") — 開催中 / (fest, "soon") — 開始3日前以内 / (None, "") — 該当なし
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for f in FESTS:
+        try:
+            start = datetime.datetime.strptime(f["start"], "%Y-%m-%d").replace(
+                hour=17, tzinfo=datetime.timezone.utc)
+            end   = datetime.datetime.strptime(f["end"], "%Y-%m-%d").replace(
+                hour=17, tzinfo=datetime.timezone.utc)
+        except ValueError:
+            continue
+        if start <= now < end:
+            return f, "live"
+        if start - datetime.timedelta(days=_FEST_SOON_DAYS) <= now < start:
+            return f, "soon"
+    return None, ""
+
+
+# ═══════════════════════════════════════════════════════════
 #  生成カウント計測（Google Sheets）
 #  ── secrets に gcp_service_account が無い環境では何もしない ──
 # ═══════════════════════════════════════════════════════════
@@ -1237,7 +1298,11 @@ def _log_generation(theme_name: str, num_games: int, lang: str) -> None:
     now_jst = datetime.datetime.now(
         datetime.timezone(datetime.timedelta(hours=9))
     ).strftime("%Y-%m-%d %H:%M:%S")
-    fest = ""  # フェスカレンダー実装後に開催中フェス名が入る（8/1 実装予定）
+    try:
+        _f, _fs = _current_fest()
+        fest = _f["name_en"] if (_f is not None and _fs == "live") else ""
+    except Exception:
+        fest = ""
 
     def _worker() -> None:
         try:
@@ -1934,6 +1999,38 @@ def main() -> None:
             st.session_state["lang"] = "en" if st.session_state.get("lang", "ja") == "ja" else "ja"
             st.rerun()
 
+    # ── フェス/セール連動バナー ─────────────────────────────
+    fest, fest_status = _current_fest()
+    if fest is not None:
+        _f_lang  = st.session_state.get("lang", "ja")
+        _f_name  = fest["name_ja"] if _f_lang == "ja" else fest["name_en"]
+        _f_theme = fest["theme"]
+        _fa      = THEMES[_f_theme]["accent"]
+        if fest_status == "live":
+            _d = datetime.datetime.strptime(fest["end"], "%Y-%m-%d")
+            _banner_text = t("fest_live_banner", name=_f_name,
+                             end=f"{_d.month}/{_d.day}", theme=_f_theme)
+        else:
+            _d = datetime.datetime.strptime(fest["start"], "%Y-%m-%d")
+            _banner_text = t("fest_soon_banner", name=_f_name,
+                             start=f"{_d.month}/{_d.day}", theme=_f_theme)
+        col_fb, col_ft = st.columns([7, 3], vertical_alignment="center")
+        with col_fb:
+            st.markdown(
+                f"<div style='border:1px solid rgba({_fa[0]},{_fa[1]},{_fa[2]},0.55);"
+                f"background:rgba({_fa[0]},{_fa[1]},{_fa[2]},0.10);"
+                f"border-radius:8px;padding:10px 14px;font-size:0.95rem;'>"
+                f"{html.escape(_banner_text)}</div>",
+                unsafe_allow_html=True,
+            )
+        with col_ft:
+            if st.button(
+                t("fest_theme_btn", theme=_f_theme),
+                key="fest_theme_btn", icon=":material/palette:",
+                use_container_width=True,
+            ):
+                st.session_state["theme_sel"] = _f_theme
+
     # ── レイアウト・進捗を先に計算 ──────────────────────────────
     show_title        = st.session_state.get("show_title", True)
     num_games_sel     = st.session_state.get("num_games_sel", 8)
@@ -2244,6 +2341,12 @@ def main() -> None:
             use_container_width=True,
         )
         # ── X シェアボタン ──────────────────────────────────
+        # フェス/セール開催中はフェス連動タグを先頭に自動付与（共通の「棚」を作る）
+        _hashtags = t("share_hashtags")
+        if fest is not None and fest_status == "live":
+            _fest_tag = (fest["tag_ja"] if st.session_state.get("lang", "ja") == "ja"
+                         else fest["tag_en"])
+            _hashtags = f"{_fest_tag},{_hashtags}"
         _tweet_params = urllib.parse.urlencode(
             {"text": t("share_tweet_text"), "url": APP_URL},
             quote_via=urllib.parse.quote,
@@ -2251,7 +2354,7 @@ def main() -> None:
         _tweet_url = (
             "https://x.com/intent/tweet?"
             + _tweet_params
-            + "&hashtags=" + urllib.parse.quote(t("share_hashtags"), safe=",")
+            + "&hashtags=" + urllib.parse.quote(_hashtags, safe=",")
         )
         st.divider()
         st.markdown(
