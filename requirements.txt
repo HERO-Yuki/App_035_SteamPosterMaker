@@ -3,3 +3,6 @@ streamlit>=1.37.0
 Pillow>=10.0.0
 requests>=2.31.0
 streamlit-sortables>=0.3.0
+
+# Metrics (Google Sheets logging)
+gspread>=6.0.0

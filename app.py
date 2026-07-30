@@ -10,6 +10,7 @@ import os
 import re
 import random
 import datetime
+import threading
 import urllib.parse
 from collections import deque
 from functools import lru_cache
@@ -1212,6 +1213,47 @@ def draw_card(
 #  ポスター生成
 # ═══════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════
+#  生成カウント計測（Google Sheets）
+#  ── secrets に gcp_service_account が無い環境では何もしない ──
+# ═══════════════════════════════════════════════════════════
+
+def _log_generation(theme_name: str, num_games: int, lang: str) -> None:
+    """ポスター生成1回を Google Sheets に記録する（fire-and-forget）。
+
+    - secrets 未設定（ローカル等）なら静かにスキップ
+    - 書き込みは別スレッドで行い、生成の体感速度に影響させない
+    - いかなる失敗もポスター生成本体には波及させない
+    """
+    try:
+        if "gcp_service_account" not in st.secrets:
+            return
+        sa_info    = dict(st.secrets["gcp_service_account"])
+        sheet_name = st.secrets.get("SPM_SHEET_NAME", "SPM計測")
+    except Exception:
+        return
+
+    # JST タイムスタンプ（Streamlit Cloud は UTC のため明示変換）
+    now_jst = datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=9))
+    ).strftime("%Y-%m-%d %H:%M:%S")
+    fest = ""  # フェスカレンダー実装後に開催中フェス名が入る（8/1 実装予定）
+
+    def _worker() -> None:
+        try:
+            import gspread
+            gc = gspread.service_account_from_dict(sa_info)
+            ws = gc.open(sheet_name).sheet1
+            ws.append_row(
+                [now_jst, "generate", theme_name, fest, str(num_games), lang],
+                value_input_option="USER_ENTERED",
+            )
+        except Exception:
+            pass  # 計測失敗は無視（リトライもしない）
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 def generate_poster(
     games: list[dict | None],
     poster_title: str,
@@ -2181,6 +2223,10 @@ def main() -> None:
                     "filename": "_".join(parts) + ".png",
                 }
                 st.session_state["_poster_complete"] = True
+                _log_generation(
+                    theme_name, num_games,
+                    st.session_state.get("lang", "ja"),
+                )
             except Exception as e:
                 gen_status.update(label=t("status_error"), state="error")
                 st.error(f"{e}")
