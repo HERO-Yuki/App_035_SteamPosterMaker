@@ -442,6 +442,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "slots_full_warn":      "すべてのスロットが埋まっています。スロットを編集するか、全クリアしてください。",
         "duplicate_warn":       "このゲームはすでに登録されています。",
         "added_toast":          "スロット {n} に追加しました",
+        # 更新情報エクスパンダー
+        "changelog_expander":   "更新情報",
+        "changelog_body": """
+**2026-07-30**
+- 🎪 Steamのフェス/セール開催中は、お知らせバナーを表示するようになりました（推奨テーマをワンタップで適用できます）
+- #️⃣ シェア時に、開催中フェスのハッシュタグを付けるかどうか選べるチェックボックスを追加しました
+- 🖱️ ポスターの保存→X投稿の流れを「①保存 ▶ ②シェア」の横並びボタンにしました
+""",
         # 利用規約エクスパンダー
         "tos_expander":         "利用規約・免責事項",
         # スティッキーバー
@@ -544,6 +552,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "feedback_header":      "Feedback",
         "feedback_body":        "Bug reports and feature requests welcome",
         "feedback_btn":         "Send Feedback",
+        "changelog_expander":   "What's New",
+        "changelog_body": """
+**2026-07-30**
+- 🎪 A banner now appears while a Steam fest/sale is live (one-tap apply of the recommended theme)
+- #️⃣ New checkbox to choose whether to add the live fest hashtag when sharing
+- 🖱️ Save → post flow is now a side-by-side "① Save ▶ ② Share" button row
+""",
         # Quick add
         "quick_add_header":     "Add Games",
         "quick_add_btn":        "Add",
@@ -2391,7 +2406,7 @@ def main() -> None:
             st.toast(t("toast_done"), icon=":material/check_circle:")
 
     # ── フッター ────────────────────────────────────────────
-    # 順序: ① 非公式注意 → ② フィードバック → ③ 作者への導線 → ④ 利用規約
+    # 順序: ① 非公式注意 → ② フィードバック → ③ 作者への導線 → ④ 更新情報 → ⑤ 利用規約
     st.divider()
 
     # ① 非公式ファンメイドツール注意（アンバー背景）
@@ -2443,8 +2458,12 @@ def main() -> None:
         )
         st.markdown(_X_BUTTON_ICON_HTML, unsafe_allow_html=True)
 
-    # ④ 利用規約・免責事項
+    # ④ 更新情報（アコーディオン）
     st.divider()
+    with st.expander(t("changelog_expander"), icon=":material/new_releases:"):
+        st.markdown(t("changelog_body"))
+
+    # ⑤ 利用規約・免責事項
     with st.expander(t("tos_expander")):
         st.markdown(
             """
