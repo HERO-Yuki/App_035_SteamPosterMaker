@@ -2332,15 +2332,7 @@ def main() -> None:
         poster_bytes = st.session_state["last_poster_bytes"]
         meta         = st.session_state["last_poster_meta"]
         st.image(poster_bytes, caption=t("preview_caption"), use_container_width=True)
-        st.download_button(
-            label=t("download_btn"),
-            icon=":material/download:",
-            data=poster_bytes,
-            file_name=meta["filename"],
-            mime="image/png",
-            use_container_width=True,
-        )
-        # ── X シェアボタン ──────────────────────────────────
+        # ── 保存 → 投稿 のフロー導線 ─────────────────────────
         # フェス/セール開催中はフェス連動タグを先頭に自動付与（共通の「棚」を作る）
         _hashtags = t("share_hashtags")
         if fest is not None and fest_status == "live":
@@ -2362,14 +2354,33 @@ def main() -> None:
             f"margin:0 0 6px;'>{t('share_header')}</p>",
             unsafe_allow_html=True,
         )
-        st.info(t("share_info"), icon=":material/attach_file:")
-        st.link_button(
-            t("share_btn"),
-            _tweet_url,
-            icon=":material/share:",
-            use_container_width=True,
-            type="primary",
+        col_dl, col_arrow, col_share = st.columns(
+            [10, 1, 10], vertical_alignment="center",
         )
+        with col_dl:
+            st.download_button(
+                label="① " + t("download_btn"),
+                icon=":material/download:",
+                data=poster_bytes,
+                file_name=meta["filename"],
+                mime="image/png",
+                use_container_width=True,
+            )
+        with col_arrow:
+            st.markdown(
+                "<div style='text-align:center;font-size:1.4rem;"
+                "color:#66c0f4;line-height:1;'>▶</div>",
+                unsafe_allow_html=True,
+            )
+        with col_share:
+            st.link_button(
+                "② " + t("share_btn"),
+                _tweet_url,
+                icon=":material/share:",
+                use_container_width=True,
+                type="primary",
+            )
+        st.info(t("share_info"), icon=":material/attach_file:")
         if st.session_state.pop("_poster_complete", False):
             st.toast(t("toast_done"), icon=":material/check_circle:")
 
