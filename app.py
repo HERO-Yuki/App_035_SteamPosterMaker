@@ -460,6 +460,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "fest_live_banner":     "🎪 Steamで「{name}」開催中（〜{end}）！「{theme}」テーマでおすすめ10選ポスターを作って布教しよう",
         "fest_soon_banner":     "🎪 Steamで「{name}」が {start} に始まります。おすすめ10選ポスターを仕込んでおこう",
         "fest_theme_btn":       "推奨テーマ「{theme}」を使う",
+        "fest_tag_check":       "開催中のフェスタグ #{tag} を付ける",
     },
     "en": {
         # Header row
@@ -567,6 +568,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "fest_live_banner":     "🎪 \"{name}\" is live on Steam until {end}! Make a top-10 poster with the \"{theme}\" theme",
         "fest_soon_banner":     "🎪 \"{name}\" starts {start} on Steam. Prep your top-10 poster now",
         "fest_theme_btn":       "Use \"{theme}\" theme",
+        "fest_tag_check":       "Add the fest hashtag #{tag}",
     },
 }
 
@@ -2333,12 +2335,22 @@ def main() -> None:
         meta         = st.session_state["last_poster_meta"]
         st.image(poster_bytes, caption=t("preview_caption"), use_container_width=True)
         # ── 保存 → 投稿 のフロー導線 ─────────────────────────
-        # フェス/セール開催中はフェス連動タグを先頭に自動付与（共通の「棚」を作る）
+        st.divider()
+        st.markdown(
+            f"<p style='text-align:center;font-weight:bold;font-size:0.95rem;"
+            f"margin:0 0 6px;'>{t('share_header')}</p>",
+            unsafe_allow_html=True,
+        )
+        # フェス/セール開催中はフェス連動タグをチェックボックスで選択（デフォルトON）
         _hashtags = t("share_hashtags")
         if fest is not None and fest_status == "live":
             _fest_tag = (fest["tag_ja"] if st.session_state.get("lang", "ja") == "ja"
                          else fest["tag_en"])
-            _hashtags = f"{_fest_tag},{_hashtags}"
+            if st.checkbox(
+                t("fest_tag_check", tag=_fest_tag),
+                value=True, key="fest_tag_on",
+            ):
+                _hashtags = f"{_fest_tag},{_hashtags}"
         _tweet_params = urllib.parse.urlencode(
             {"text": t("share_tweet_text"), "url": APP_URL},
             quote_via=urllib.parse.quote,
@@ -2347,12 +2359,6 @@ def main() -> None:
             "https://x.com/intent/tweet?"
             + _tweet_params
             + "&hashtags=" + urllib.parse.quote(_hashtags, safe=",")
-        )
-        st.divider()
-        st.markdown(
-            f"<p style='text-align:center;font-weight:bold;font-size:0.95rem;"
-            f"margin:0 0 6px;'>{t('share_header')}</p>",
-            unsafe_allow_html=True,
         )
         col_dl, col_arrow, col_share = st.columns(
             [10, 1, 10], vertical_alignment="center",
