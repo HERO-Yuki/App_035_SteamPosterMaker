@@ -14,6 +14,7 @@ import threading
 import urllib.parse
 from collections import deque
 from functools import lru_cache
+from zoneinfo import ZoneInfo
 
 # ── Third Party ────────────────────────────────────────────
 import requests
@@ -464,7 +465,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "share_info":           "Xの投稿画面が開いたら、保存したポスター画像を添付して投稿してください。",
         "share_btn":            "X でシェアする",
         "share_tweet_text":     "SteamPosterMakerで推しゲーのポスターを作りました！Steamのおすすめゲームをまとめた画像を自動生成できるツールです。ぜひ試してみて",
-        "share_hashtags":       "Steam,おすすめゲーム,SteamPosterMaker",
+        "share_hashtags":       "Steamセール,おすすめゲーム,SteamPosterMaker",
         "fest_live_banner":     "🎪 Steamで「{name}」開催中（〜{end}）！「{theme}」テーマでおすすめ10選ポスターを作って布教しよう",
         "fest_soon_banner":     "🎪 Steamで「{name}」が {start} に始まります。おすすめ10選ポスターを仕込んでおこう",
         "fest_theme_btn":       "推奨テーマ「{theme}」を使う",
@@ -579,7 +580,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "share_info":           "When X opens, attach the downloaded poster image to complete your post!",
         "share_btn":            "Share on X",
         "share_tweet_text":     "I made a game recommendation poster with SteamPosterMaker! A tool that auto-generates summary images of your favorite Steam games. Check it out",
-        "share_hashtags":       "Steam,SteamGames,SteamPosterMaker",
+        "share_hashtags":       "SteamSale,SteamGames,SteamPosterMaker",
         "fest_live_banner":     "🎪 \"{name}\" is live on Steam until {end}! Make a top-10 poster with the \"{theme}\" theme",
         "fest_soon_banner":     "🎪 \"{name}\" starts {start} on Steam. Prep your top-10 poster now",
         "fest_theme_btn":       "Use \"{theme}\" theme",
@@ -1242,19 +1243,34 @@ def draw_card(
 #  ── 日程ソース: steamdb.info/sales/history ────────────────
 # ═══════════════════════════════════════════════════════════
 
+# 日付は Valve 公表の PT 基準（各日 10:00 PT 開始／終了）。開始日順に並べること。
+# _current_fest() が先頭から走査し最初にマッチしたものを返すため、順序が崩れると
+# 隣接フェス（例: クッキング 10/12-19 と Next Fest 10/19-26）の切り替わりが狂う。
 FESTS: list[dict] = [
     {"name_ja": "サイバーパンクフェス",     "name_en": "Cyberpunk Fest",
      "start": "2026-08-03", "end": "2026-08-10", "theme": "Cyber Neon",
      "tag_ja": "サイバーパンクフェス",       "tag_en": "CyberpunkFest"},
+    {"name_ja": "ピン＆ペグフェス",         "name_en": "Pins & Pegs Fest",
+     "start": "2026-08-17", "end": "2026-08-20", "theme": "Pixel Retro",
+     "tag_ja": "ピンアンドペグフェス",       "tag_en": "PinsAndPegsFest"},
     {"name_ja": "サバイバルクラフトフェス", "name_en": "PvE Survival Crafting Fest",
      "start": "2026-08-31", "end": "2026-09-07", "theme": "Steam Classic",
      "tag_ja": "サバイバルクラフト",         "tag_en": "SurvivalCraftingFest"},
+    {"name_ja": "プログラミングフェス",     "name_en": "Programming Fest",
+     "start": "2026-09-10", "end": "2026-09-14", "theme": "Cyber Neon",
+     "tag_ja": "プログラミングフェス",       "tag_en": "ProgrammingFest"},
     {"name_ja": "パーティ制RPGフェス",      "name_en": "Party-Based RPG Fest",
      "start": "2026-09-14", "end": "2026-09-21", "theme": "Dark Fantasy",
      "tag_ja": "RPGフェス",                  "tag_en": "PartyBasedRPGFest"},
     {"name_ja": "オータムセール",           "name_en": "Autumn Sale",
      "start": "2026-10-01", "end": "2026-10-08", "theme": "Steam Classic",
      "tag_ja": "Steamオータムセール",        "tag_en": "SteamAutumnSale"},
+    {"name_ja": "クッキングフェス",         "name_en": "Steam Cooking Fest",
+     "start": "2026-10-12", "end": "2026-10-19", "theme": "Steam Classic",
+     "tag_ja": "クッキングフェス",           "tag_en": "SteamCookingFest"},
+    {"name_ja": "Steam Nextフェス",         "name_en": "Steam Next Fest",
+     "start": "2026-10-19", "end": "2026-10-26", "theme": "Steam Classic",
+     "tag_ja": "SteamNextフェス",            "tag_en": "SteamNextFest"},
     {"name_ja": "スチームスクリーム",       "name_en": "Steam Scream Fest",
      "start": "2026-10-26", "end": "2026-11-02", "theme": "Horror Void",
      "tag_ja": "スチームスクリーム",         "tag_en": "SteamScreamFest"},
@@ -1268,6 +1284,20 @@ FESTS: list[dict] = [
 
 _FEST_SOON_DAYS = 3  # 開始何日前から「まもなく」バナーを出すか
 
+_PT = ZoneInfo("America/Los_Angeles")
+
+
+def _pt_10am(date_str: str) -> datetime.datetime:
+    """"YYYY-MM-DD" を「その日の 10:00 太平洋時間」の UTC aware datetime にする。
+
+    Steam のフェス／セールは開始も終了も 10:00 PT 固定。
+    PT は夏時間があり UTC-7（PDT）と UTC-8（PST）を行き来するため、
+    UTC オフセットを固定値でハードコードしてはいけない
+    （旧実装は hour=17 UTC 決め打ちで、冬時間の期間は1時間ずれていた）。
+    """
+    naive = datetime.datetime.strptime(date_str, "%Y-%m-%d").replace(hour=10)
+    return naive.replace(tzinfo=_PT).astimezone(datetime.timezone.utc)
+
 
 def _current_fest() -> tuple[dict | None, str]:
     """開催中 or まもなく開始のフェス/セールを返す。
@@ -1278,10 +1308,8 @@ def _current_fest() -> tuple[dict | None, str]:
     now = datetime.datetime.now(datetime.timezone.utc)
     for f in FESTS:
         try:
-            start = datetime.datetime.strptime(f["start"], "%Y-%m-%d").replace(
-                hour=17, tzinfo=datetime.timezone.utc)
-            end   = datetime.datetime.strptime(f["end"], "%Y-%m-%d").replace(
-                hour=17, tzinfo=datetime.timezone.utc)
+            start = _pt_10am(f["start"])
+            end   = _pt_10am(f["end"])
         except ValueError:
             continue
         if start <= now < end:
